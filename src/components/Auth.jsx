@@ -7,6 +7,7 @@ export default function Auth() {
   const [username, setUsername] = useState("")
   const [loading, setLoading] = useState(false)
   const [isLogin, setIsLogin] = useState(true)
+  const [isForgot, setIsForgot] = useState(false)
   const [message, setMessage] = useState("")
 
   const handleLogin = async () => {
@@ -31,8 +32,65 @@ export default function Auth() {
       options: { data: { full_name: username } }
     })
     if (error) setMessage("❌ " + error.message)
-    else setMessage("✅ Sjekk e-posten din for å bekrefte kontoen!")
+    else setMessage("✅ Konto opprettet! Du kan nå logge inn.")
     setLoading(false)
+  }
+
+  const handleForgotPassword = async () => {
+    setLoading(true)
+    setMessage("")
+    if (!email.trim()) {
+      setMessage("❌ Skriv inn e-postadressen din først")
+      setLoading(false)
+      return
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://vm2026tips.vercel.app/reset-password',
+    })
+    if (error) setMessage("❌ " + error.message)
+    else setMessage("✅ Sjekk e-posten din for å nullstille passordet!")
+    setLoading(false)
+  }
+
+  if (isForgot) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.header}>
+            <div style={styles.trophy}>🏆</div>
+            <h1 style={styles.title}>Glemt passord</h1>
+            <p style={styles.subtitle}>Vi sender deg en e-post med en lenke</p>
+          </div>
+
+          <div style={styles.form}>
+            <input
+              style={styles.input}
+              type="email"
+              placeholder="E-post"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+
+            {message && <div style={styles.message}>{message}</div>}
+
+            <button
+              style={styles.button}
+              onClick={handleForgotPassword}
+              disabled={loading}
+            >
+              {loading ? "Sender..." : "Send tilbakestillingslenke"}
+            </button>
+
+            <button
+              style={styles.backButton}
+              onClick={() => { setIsForgot(false); setMessage("") }}
+            >
+              ← Tilbake til innlogging
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -93,6 +151,15 @@ export default function Auth() {
           >
             {loading ? "Laster..." : isLogin ? "Logg inn" : "Opprett konto"}
           </button>
+
+          {isLogin && (
+            <button
+              style={styles.forgotButton}
+              onClick={() => { setIsForgot(true); setMessage("") }}
+            >
+              Glemt passord?
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -189,5 +256,23 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
     marginTop: '8px',
+  },
+  forgotButton: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '14px',
+    cursor: 'pointer',
+    textAlign: 'center',
+    textDecoration: 'underline',
+  },
+  backButton: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '14px',
+    cursor: 'pointer',
+    textAlign: 'center',
+    textDecoration: 'underline',
   },
 }

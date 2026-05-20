@@ -2,19 +2,35 @@ import { useState, useEffect } from "react"
 import { supabase } from "./supabaseClient"
 import Auth from "./components/Auth"
 import Dashboard from "./components/Dashboard"
+import ResetPassword from "./components/ResetPassword"
 
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isReset, setIsReset] = useState(false)
 
   useEffect(() => {
+    // Sjekk URL for reset-token
+    const hash = window.location.hash
+    if (hash && hash.includes("type=recovery")) {
+      setIsReset(true)
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsReset(true)
+        setLoading(false)
+      } else if (event === "USER_UPDATED") {
+        setIsReset(false)
+        setSession(session)
+      } else {
+        setSession(session)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -25,6 +41,8 @@ function App() {
       <div style={styles.loadingText}>🏆 Laster VM-tipping...</div>
     </div>
   )
+
+  if (isReset) return <ResetPassword onDone={() => setIsReset(false)} />
 
   return (
     <div style={styles.app}>
