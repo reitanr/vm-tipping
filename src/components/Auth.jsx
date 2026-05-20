@@ -45,7 +45,7 @@ export default function Auth() {
       return
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://vm2026tips.vercel.app/reset-password',
+      redirectTo: 'https://vm2026tips.vercel.app',
     })
     if (error) setMessage("❌ " + error.message)
     else setMessage("✅ Sjekk e-posten din for å nullstille passordet!")
