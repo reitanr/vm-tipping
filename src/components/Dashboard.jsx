@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient"
 import Leaderboard from "./Leaderboard"
 import Predictions from "./Predictions"
 import BonusQuestions from "./BonusQuestions"
+import Admin from "./Admin"
 
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
@@ -29,6 +30,7 @@ export default function Dashboard({ session }) {
     { id: "predictions", label: "⚽ Tippe kamper" },
     { id: "bonus", label: "🎯 Bonusspørsmål" },
     { id: "leaderboard", label: "🏆 Ledertavle" },
+    ...(profile?.is_admin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ]
 
   return (
@@ -62,6 +64,7 @@ export default function Dashboard({ session }) {
         {activeTab === "predictions" && <Predictions session={session} />}
         {activeTab === "bonus" && <BonusQuestions session={session} />}
         {activeTab === "leaderboard" && <Leaderboard />}
+        {activeTab === "admin" && profile?.is_admin && <Admin />}
       </div>
     </div>
   )
