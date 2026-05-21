@@ -8,9 +8,11 @@ import Admin from "./Admin"
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
   const [profile, setProfile] = useState(null)
+  const [settings, setSettings] = useState({ playoff_open: false })
 
   useEffect(() => {
     getProfile()
+    getSettings()
   }, [session])
 
   const getProfile = async () => {
@@ -22,14 +24,23 @@ export default function Dashboard({ session }) {
     setProfile(data)
   }
 
+  const getSettings = async () => {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("*")
+      .single()
+    if (data) setSettings(data)
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
   }
 
   const tabs = [
-    { id: "predictions", label: "⚽ Tippe kamper" },
-    { id: "bonus", label: "🎯 Bonusspørsmål" },
-    { id: "leaderboard", label: "🏆 Ledertavle" },
+    { id: "predictions", label: "⚽ Gruppespill" },
+    ...(settings?.playoff_open ? [{ id: "playoff", label: "🏆 Sluttspill" }] : []),
+    { id: "bonus", label: "🎯 Bonus" },
+    { id: "leaderboard", label: "🥇 Ledertavle" },
     ...(profile?.is_admin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ]
 
@@ -71,70 +82,31 @@ export default function Dashboard({ session }) {
 }
 
 const styles = {
-  container: {
-    minHeight: '100vh',
-    color: 'white',
-  },
+  container: { minHeight: '100vh', color: 'white' },
   header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '16px 24px',
-    background: 'rgba(0,0,0,0.3)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '16px 24px', background: 'rgba(0,0,0,0.3)',
     borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
-  headerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  logo: {
-    fontSize: '32px',
-  },
-  appName: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  welcome: {
-    fontSize: '13px',
-    color: 'rgba(255,255,255,0.6)',
-  },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+  logo: { fontSize: '32px' },
+  appName: { fontSize: '18px', fontWeight: 'bold', color: 'white' },
+  welcome: { fontSize: '13px', color: 'rgba(255,255,255,0.6)' },
   signOut: {
-    padding: '8px 16px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.7)',
-    cursor: 'pointer',
-    fontSize: '13px',
+    padding: '8px 16px', borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+    color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '13px',
   },
   tabs: {
-    display: 'flex',
-    padding: '16px 24px',
-    gap: '8px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
-    overflowX: 'auto',
+    display: 'flex', padding: '16px 24px', gap: '8px',
+    borderBottom: '1px solid rgba(255,255,255,0.1)', overflowX: 'auto',
   },
   tab: {
-    padding: '10px 20px',
-    borderRadius: '20px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.7)',
-    cursor: 'pointer',
-    fontSize: '14px',
-    whiteSpace: 'nowrap',
-    fontWeight: '500',
+    padding: '10px 20px', borderRadius: '20px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+    color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px',
+    whiteSpace: 'nowrap', fontWeight: '500',
   },
-  activeTab: {
-    background: '#e94560',
-    border: '1px solid #e94560',
-    color: 'white',
-  },
-  content: {
-    padding: '24px',
-    maxWidth: '900px',
-    margin: '0 auto',
-  },
+  activeTab: { background: '#e94560', border: '1px solid #e94560', color: 'white' },
+  content: { padding: '24px', maxWidth: '900px', margin: '0 auto' },
 }
