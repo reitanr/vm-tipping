@@ -92,6 +92,21 @@ export default function BonusQuestions({ session }) {
       )
     }
 
+    if (question.question_type === "select" && question.options) {
+      return (
+        <select
+          style={styles.select}
+          value={value}
+          onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+        >
+          <option value="">-- Velg kamp --</option>
+          {question.options.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      )
+    }
+
     if (question.question_type === "player") {
       return (
         <select
@@ -180,116 +195,53 @@ export default function BonusQuestions({ session }) {
 }
 
 const styles = {
-  title: {
-    color: 'white',
-    fontSize: '22px',
-    marginBottom: '8px',
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: '14px',
-    marginBottom: '20px',
-  },
-  loading: {
-    color: 'white',
-    textAlign: 'center',
-    padding: '40px',
-  },
+  title: { color: 'white', fontSize: '22px', marginBottom: '8px' },
+  subtitle: { color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginBottom: '20px' },
+  loading: { color: 'white', textAlign: 'center', padding: '40px' },
   message: {
-    padding: '12px 16px',
-    borderRadius: '8px',
-    background: 'rgba(255,255,255,0.1)',
-    color: 'white',
-    marginBottom: '16px',
-    textAlign: 'center',
+    padding: '12px 16px', borderRadius: '8px',
+    background: 'rgba(255,255,255,0.1)', color: 'white',
+    marginBottom: '16px', textAlign: 'center',
   },
-  questions: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
+  questions: { display: 'flex', flexDirection: 'column', gap: '12px' },
   questionCard: {
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
-    padding: '20px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
+    padding: '20px', border: '1px solid rgba(255,255,255,0.1)',
   },
   questionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '10px',
+    display: 'flex', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: '10px',
   },
-  questionNumber: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: '13px',
-  },
+  questionNumber: { color: 'rgba(255,255,255,0.4)', fontSize: '13px' },
   points: {
-    background: '#e94560',
-    color: 'white',
-    padding: '3px 10px',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: 'bold',
+    background: '#e94560', color: 'white', padding: '3px 10px',
+    borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
   },
-  questionText: {
-    color: 'white',
-    fontSize: '16px',
-    marginBottom: '14px',
-    lineHeight: '1.4',
-  },
-  yesNoRow: {
-    display: 'flex',
-    gap: '10px',
-    marginBottom: '12px',
-  },
+  questionText: { color: 'white', fontSize: '16px', marginBottom: '14px', lineHeight: '1.4' },
+  yesNoRow: { display: 'flex', gap: '10px', marginBottom: '12px' },
   yesNoButton: {
-    flex: 1,
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.7)',
-    cursor: 'pointer',
-    fontSize: '15px',
+    flex: 1, padding: '12px', borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+    color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '15px',
   },
   yesNoActive: {
     background: 'rgba(233,69,96,0.3)',
-    border: '1px solid #e94560',
-    color: 'white',
+    border: '1px solid #e94560', color: 'white',
   },
   select: {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: '#1a1a2e',
-    color: 'white',
-    fontSize: '15px',
-    marginBottom: '12px',
-    outline: 'none',
+    width: '100%', padding: '12px', borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.2)', background: '#1a1a2e',
+    color: 'white', fontSize: '15px', marginBottom: '12px', outline: 'none',
   },
   input: {
-    width: '100%',
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    background: 'rgba(255,255,255,0.05)',
-    color: 'white',
-    fontSize: '15px',
-    marginBottom: '12px',
-    outline: 'none',
-    boxSizing: 'border-box',
+    width: '100%', padding: '12px', borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
+    color: 'white', fontSize: '15px', marginBottom: '12px',
+    outline: 'none', boxSizing: 'border-box',
   },
   saveButton: {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '8px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #e94560, #c62a47)',
-    color: 'white',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
+    width: '100%', padding: '10px', borderRadius: '8px', border: 'none',
+    background: 'linear-gradient(135deg, #e94560, #c62a47)', color: 'white',
+    fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
   },
 }
