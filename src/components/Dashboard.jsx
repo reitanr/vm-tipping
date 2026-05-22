@@ -8,7 +8,7 @@ import Admin from "./Admin"
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
   const [profile, setProfile] = useState(null)
-  const [settings, setSettings] = useState({ playoff_open: false })
+  const [settings, setSettings] = useState({ playoff_open: false, betting_open: true })
 
   useEffect(() => {
     getProfile()
@@ -72,10 +72,20 @@ export default function Dashboard({ session }) {
       </div>
 
       <div style={styles.content}>
-        {activeTab === "predictions" && <Predictions session={session} />}
-        {activeTab === "bonus" && <BonusQuestions session={session} />}
-        {activeTab === "leaderboard" && <Leaderboard />}
-        {activeTab === "admin" && profile?.is_admin && <Admin />}
+        <div style={{ display: activeTab === "predictions" ? "block" : "none" }}>
+          <Predictions session={session} />
+        </div>
+        <div style={{ display: activeTab === "bonus" ? "block" : "none" }}>
+          <BonusQuestions session={session} />
+        </div>
+        <div style={{ display: activeTab === "leaderboard" ? "block" : "none" }}>
+          <Leaderboard />
+        </div>
+        {profile?.is_admin && (
+          <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
+            <Admin />
+          </div>
+        )}
       </div>
     </div>
   )

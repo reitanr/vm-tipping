@@ -15,9 +15,11 @@ export default function Admin() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [activeTab])
 
   const fetchData = async () => {
+    setLoading(true)
+
     const { data: teamsData } = await supabase.from("teams").select("*")
     const teamsMap = {}
     teamsData?.forEach(t => teamsMap[t.id] = t)
@@ -32,11 +34,9 @@ export default function Admin() {
 
     const resultsMap = {}
     matchesData?.forEach(m => {
-      if (m.home_score !== null) {
-        resultsMap[m.id] = {
-          home: m.home_score.toString(),
-          away: m.away_score.toString(),
-        }
+      resultsMap[m.id] = {
+        home: m.home_score !== null ? m.home_score.toString() : "",
+        away: m.away_score !== null ? m.away_score.toString() : "",
       }
     })
     setResults(resultsMap)
@@ -264,7 +264,7 @@ export default function Admin() {
               const home = teams[match.home_team_id]
               const away = teams[match.away_team_id]
               const result = results[match.id] || { home: "", away: "" }
-              const hasResult = match.home_score !== null
+              const hasResult = result.home !== "" && result.away !== ""
 
               return (
                 <div key={match.id} style={{
@@ -303,8 +303,13 @@ export default function Admin() {
                       <span style={styles.flag}>{away?.flag_emoji}</span>
                     </div>
                   </div>
+                  {hasResult && (
+                    <div style={styles.resultDisplay}>
+                      ✅ Lagret: {result.home} – {result.away}
+                    </div>
+                  )}
                   <button style={styles.saveButton} onClick={() => saveResult(match.id)}>
-                    {hasResult ? "✅ Oppdater resultat" : "Lagre resultat"}
+                    {hasResult ? "Oppdater resultat" : "Lagre resultat"}
                   </button>
                 </div>
               )
@@ -325,6 +330,11 @@ export default function Admin() {
                 <span style={styles.points}>{q.points} poeng</span>
               </div>
               <p style={styles.questionText}>{q.question}</p>
+              {q.correct_answer && (
+                <div style={styles.correctAnswerDisplay}>
+                  ✅ Riktig svar: {q.correct_answer}
+                </div>
+              )}
               <input
                 style={styles.input}
                 type="text"
@@ -333,7 +343,7 @@ export default function Admin() {
                 onChange={e => setBonusAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
               />
               <button style={styles.saveButton} onClick={() => saveBonusAnswer(q.id)}>
-                {q.correct_answer ? "✅ Oppdater svar" : "Lagre svar"}
+                {q.correct_answer ? "Oppdater svar" : "Lagre svar"}
               </button>
             </div>
           ))}
@@ -401,6 +411,11 @@ const styles = {
     color: 'white', fontSize: '22px', fontWeight: 'bold', textAlign: 'center', outline: 'none',
   },
   vs: { color: 'rgba(255,255,255,0.4)', fontSize: '18px' },
+  resultDisplay: {
+    color: '#27ae60', fontSize: '13px', textAlign: 'center',
+    padding: '6px', background: 'rgba(39,174,96,0.1)',
+    borderRadius: '6px', marginBottom: '8px',
+  },
   saveButton: {
     width: '100%', padding: '10px', borderRadius: '8px', border: 'none',
     background: 'linear-gradient(135deg, #e94560, #c62a47)', color: 'white',
@@ -416,6 +431,10 @@ const styles = {
   questionNumber: { color: 'rgba(255,255,255,0.4)', fontSize: '13px' },
   points: { background: '#e94560', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
   questionText: { color: 'white', fontSize: '16px', marginBottom: '14px', lineHeight: '1.4' },
+  correctAnswerDisplay: {
+    color: '#27ae60', fontSize: '13px', padding: '8px 12px',
+    background: 'rgba(39,174,96,0.1)', borderRadius: '6px', marginBottom: '12px',
+  },
   input: {
     width: '100%', padding: '12px', borderRadius: '8px',
     border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
