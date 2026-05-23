@@ -52,6 +52,12 @@ export default function Auth() {
     setLoading(false)
   }
 
+  const handleFocus = (e) => {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+  }
+
   if (isForgot) {
     return (
       <div style={styles.container}>
@@ -68,6 +74,7 @@ export default function Auth() {
               type="email"
               placeholder="E-post"
               value={email}
+              onFocus={handleFocus}
               onChange={e => setEmail(e.target.value)}
             />
 
@@ -124,6 +131,7 @@ export default function Auth() {
               type="text"
               placeholder="Brukernavn"
               value={username}
+              onFocus={handleFocus}
               onChange={e => setUsername(e.target.value)}
             />
           )}
@@ -132,6 +140,7 @@ export default function Auth() {
             type="email"
             placeholder="E-post"
             value={email}
+            onFocus={handleFocus}
             onChange={e => setEmail(e.target.value)}
           />
           <input
@@ -139,6 +148,7 @@ export default function Auth() {
             type="password"
             placeholder="Passord"
             value={password}
+            onFocus={handleFocus}
             onChange={e => setPassword(e.target.value)}
           />
 
