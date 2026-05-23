@@ -4,6 +4,7 @@ import Leaderboard from "./Leaderboard"
 import Predictions from "./Predictions"
 import BonusQuestions from "./BonusQuestions"
 import Admin from "./Admin"
+import Rules from "./Rules"
 
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
@@ -41,6 +42,7 @@ export default function Dashboard({ session }) {
     ...(settings?.playoff_open ? [{ id: "playoff", label: "🏆 Sluttspill" }] : []),
     { id: "bonus", label: "🎯 Bonus" },
     { id: "leaderboard", label: "🥇 Ledertavle" },
+    { id: "rules", label: "📋 Regler" },
     ...(profile?.is_admin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ]
 
@@ -80,6 +82,9 @@ export default function Dashboard({ session }) {
         </div>
         <div style={{ display: activeTab === "leaderboard" ? "block" : "none" }}>
           <Leaderboard />
+        </div>
+        <div style={{ display: activeTab === "rules" ? "block" : "none" }}>
+          <Rules />
         </div>
         {profile?.is_admin && (
           <div style={{ display: activeTab === "admin" ? "block" : "none" }}>

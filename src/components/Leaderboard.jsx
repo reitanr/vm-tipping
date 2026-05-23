@@ -56,7 +56,7 @@ export default function Leaderboard() {
   return (
     <div>
       <h2 style={styles.title}>🏆 Ledertavle</h2>
-      <p style={styles.subtitle}>Oppdateres automatisk etter hver kamp</p>
+      <p style={styles.subtitle}>Oppdateres hver kveld</p>
 
       {scores.length === 0 ? (
         <div style={styles.empty}>Ingen poeng registrert ennå – VM starter snart!</div>
@@ -87,68 +87,26 @@ export default function Leaderboard() {
 }
 
 const styles = {
-  title: {
-    color: 'white',
-    fontSize: '22px',
-    marginBottom: '8px',
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: '14px',
-    marginBottom: '20px',
-  },
-  loading: {
-    color: 'white',
-    textAlign: 'center',
-    padding: '40px',
-  },
+  title: { color: 'white', fontSize: '22px', marginBottom: '8px' },
+  subtitle: { color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginBottom: '20px' },
+  loading: { color: 'white', textAlign: 'center', padding: '40px' },
   empty: {
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    padding: '40px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
+    color: 'rgba(255,255,255,0.5)', textAlign: 'center',
+    padding: '40px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
   },
-  list: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
+  list: { display: 'flex', flexDirection: 'column', gap: '8px' },
   row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    padding: '16px 20px',
-    background: 'rgba(255,255,255,0.05)',
-    borderRadius: '12px',
-    border: '1px solid rgba(255,255,255,0.1)',
+    display: 'flex', alignItems: 'center', gap: '16px',
+    padding: '16px 20px', background: 'rgba(255,255,255,0.05)',
+    borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)',
   },
   firstPlace: {
     background: 'rgba(255,215,0,0.1)',
     border: '1px solid rgba(255,215,0,0.3)',
   },
-  rank: {
-    fontSize: '24px',
-    width: '40px',
-    textAlign: 'center',
-  },
-  username: {
-    flex: 1,
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: '500',
-  },
-  points: {
-    textAlign: 'right',
-  },
-  totalPoints: {
-    color: 'white',
-    fontSize: '18px',
-    fontWeight: 'bold',
-  },
-  breakdown: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: '12px',
-    marginTop: '2px',
-  },
+  rank: { fontSize: '24px', width: '40px', textAlign: 'center' },
+  username: { flex: 1, color: 'white', fontSize: '16px', fontWeight: '500' },
+  points: { textAlign: 'right' },
+  totalPoints: { color: 'white', fontSize: '18px', fontWeight: 'bold' },
+  breakdown: { color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginTop: '2px' },
 }
