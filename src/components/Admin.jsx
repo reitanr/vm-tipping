@@ -7,11 +7,15 @@ export default function Admin() {
   const [bonusQuestions, setBonusQuestions] = useState([])
   const [results, setResults] = useState({})
   const [bonusAnswers, setBonusAnswers] = useState({})
-  const [settings, setSettings] = useState({ playoff_open: false, betting_open: true })
+  const [settings, setSettings] = useState({ playoff_open: false, betting_open: true, show_all_predictions: false })
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState("settings")
   const [activeGroup, setActiveGroup] = useState('A')
+  const [profiles, setProfiles] = useState([])
+  const [bonusPredictions, setBonusPredictions] = useState({})
+  const [activeUser, setActiveUser] = useState(null)
+  const [editAnswers, setEditAnswers] = useState({})
 
   useEffect(() => {
     fetchData()
@@ -59,6 +63,29 @@ export default function Admin() {
       .single()
     if (settingsData) setSettings(settingsData)
 
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("username")
+    setProfiles(profilesData || [])
+
+    const firstUserId = profilesData?.[0]?.id
+    if (firstUserId && !activeUser) setActiveUser(firstUserId)
+
+    const { data: bonusPredsData } = await supabase
+      .from("bonus_predictions")
+      .select("*")
+    const bonusPredMap = {}
+    const editMap = {}
+    bonusPredsData?.forEach(p => {
+      if (!bonusPredMap[p.user_id]) bonusPredMap[p.user_id] = {}
+      bonusPredMap[p.user_id][p.question_id] = { answer: p.answer, id: p.id }
+      if (!editMap[p.user_id]) editMap[p.user_id] = {}
+      editMap[p.user_id][p.question_id] = p.answer
+    })
+    setBonusPredictions(bonusPredMap)
+    setEditAnswers(editMap)
+
     setLoading(false)
   }
 
@@ -68,6 +95,7 @@ export default function Admin() {
       .update({
         playoff_open: settings.playoff_open,
         betting_open: settings.betting_open,
+        show_all_predictions: settings.show_all_predictions,
       })
       .eq("id", 1)
 
@@ -177,6 +205,33 @@ export default function Admin() {
     }
   }
 
+  const updateUserBonusAnswer = async (userId, questionId) => {
+    const newAnswer = editAnswers[userId]?.[questionId] || ""
+    const { error } = await supabase
+      .from("bonus_predictions")
+      .upsert({
+        user_id: userId,
+        question_id: questionId,
+        answer: newAnswer,
+      }, { onConflict: "user_id,question_id" })
+
+    if (error) setMessage("❌ Noe gikk galt")
+    else setMessage("✅ Svar oppdatert!")
+    setTimeout(() => setMessage(""), 3000)
+  }
+
+  const giveManualPoints = async (userId, questionId, points) => {
+    const { error } = await supabase
+      .from("bonus_predictions")
+      .update({ points_awarded: points })
+      .eq("user_id", userId)
+      .eq("question_id", questionId)
+
+    if (error) setMessage("❌ Noe gikk galt")
+    else setMessage(`✅ ${points} poeng gitt!`)
+    setTimeout(() => setMessage(""), 3000)
+  }
+
   const groupMatches = matches.filter(m => m.group_letter === activeGroup)
   const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
 
@@ -198,6 +253,7 @@ export default function Admin() {
           { id: "settings", label: "⚙️ Innstillinger" },
           { id: "matches", label: "⚽ Resultater" },
           { id: "bonus", label: "🎯 Bonussvar" },
+          { id: "userbonustips", label: "👥 Brukertips" },
         ].map(t => (
           <button
             key={t.id}
@@ -236,6 +292,19 @@ export default function Admin() {
               onClick={() => setSettings(prev => ({ ...prev, playoff_open: !prev.playoff_open }))}
             >
               {settings.playoff_open ? "PÅ" : "AV"}
+            </button>
+          </div>
+
+          <div style={styles.settingRow}>
+            <div>
+              <div style={styles.settingLabel}>👀 Vis alles tips</div>
+              <div style={styles.settingDesc}>Slå på etter tippefristen så alle kan se hverandres tips</div>
+            </div>
+            <button
+              style={{ ...styles.toggle, ...(settings.show_all_predictions ? styles.toggleOn : styles.toggleOff) }}
+              onClick={() => setSettings(prev => ({ ...prev, show_all_predictions: !prev.show_all_predictions }))}
+            >
+              {settings.show_all_predictions ? "PÅ" : "AV"}
             </button>
           </div>
 
@@ -349,6 +418,82 @@ export default function Admin() {
           ))}
         </div>
       )}
+
+      {activeTab === "userbonustips" && (
+        <div>
+          <div style={styles.userTabs}>
+            {profiles.map(p => (
+              <button
+                key={p.id}
+                style={{ ...styles.userTab, ...(activeUser === p.id ? styles.activeUserTab : {}) }}
+                onClick={() => setActiveUser(p.id)}
+              >
+                {p.username}
+              </button>
+            ))}
+          </div>
+
+          {activeUser && (
+            <div style={styles.questions}>
+              {bonusQuestions.map((q, index) => {
+                const userAnswer = editAnswers[activeUser]?.[q.id] || ""
+                const hasPred = bonusPredictions[activeUser]?.[q.id]
+
+                return (
+                  <div key={q.id} style={{
+                    ...styles.questionCard,
+                    ...(hasPred ? styles.questionCardDone : {})
+                  }}>
+                    <div style={styles.questionHeader}>
+                      <span style={styles.questionNumber}>#{index + 1}</span>
+                      <span style={styles.points}>{q.points} poeng</span>
+                    </div>
+                    <p style={styles.questionText}>{q.question}</p>
+
+                    <input
+                      style={styles.input}
+                      type="text"
+                      value={userAnswer}
+                      placeholder="Ingen svar"
+                      onChange={e => setEditAnswers(prev => ({
+                        ...prev,
+                        [activeUser]: { ...prev[activeUser], [q.id]: e.target.value }
+                      }))}
+                    />
+
+                    <div style={styles.buttonRow}>
+                      <button
+                        style={styles.editButton}
+                        onClick={() => updateUserBonusAnswer(activeUser, q.id)}
+                      >
+                        💾 Lagre
+                      </button>
+                      <button
+                        style={styles.pointsButton}
+                        onClick={() => giveManualPoints(activeUser, q.id, q.points)}
+                      >
+                        ✅ {q.points}p
+                      </button>
+                      <button
+                        style={styles.halfPointsButton}
+                        onClick={() => giveManualPoints(activeUser, q.id, Math.floor(q.points / 2))}
+                      >
+                        ½ {Math.floor(q.points / 2)}p
+                      </button>
+                      <button
+                        style={styles.zeroButton}
+                        onClick={() => giveManualPoints(activeUser, q.id, 0)}
+                      >
+                        ❌ 0p
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -439,5 +584,30 @@ const styles = {
     width: '100%', padding: '12px', borderRadius: '8px',
     border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
     color: 'white', fontSize: '15px', marginBottom: '12px', outline: 'none', boxSizing: 'border-box',
+  },
+  userTabs: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' },
+  userTab: {
+    padding: '8px 16px', borderRadius: '20px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+    color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '13px',
+  },
+  activeUserTab: { background: 'rgba(233,69,96,0.3)', border: '1px solid #e94560', color: 'white' },
+  buttonRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
+  editButton: {
+    flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+    background: 'rgba(255,255,255,0.1)', color: 'white',
+    fontSize: '13px', cursor: 'pointer',
+  },
+  pointsButton: {
+    flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+    background: '#27ae60', color: 'white', fontSize: '13px', cursor: 'pointer',
+  },
+  halfPointsButton: {
+    flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+    background: '#f39c12', color: 'white', fontSize: '13px', cursor: 'pointer',
+  },
+  zeroButton: {
+    flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
+    background: 'rgba(233,69,96,0.3)', color: 'white', fontSize: '13px', cursor: 'pointer',
   },
 }

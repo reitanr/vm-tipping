@@ -5,11 +5,12 @@ import Predictions from "./Predictions"
 import BonusQuestions from "./BonusQuestions"
 import Admin from "./Admin"
 import Rules from "./Rules"
+import AllPredictions from "./AllPredictions"
 
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
   const [profile, setProfile] = useState(null)
-  const [settings, setSettings] = useState({ playoff_open: false, betting_open: true })
+  const [settings, setSettings] = useState(null)
 
   useEffect(() => {
     getProfile()
@@ -37,13 +38,24 @@ export default function Dashboard({ session }) {
     await supabase.auth.signOut()
   }
 
+  const isAdmin = profile?.is_admin
+  const showAllPredictions = isAdmin || settings?.show_all_predictions === true
+
+  // Ikke vis fanene før innstillingene er lastet
+  if (!settings) return (
+    <div style={styles.loadingContainer}>
+      <div style={styles.loadingText}>🏆 Laster...</div>
+    </div>
+  )
+
   const tabs = [
     { id: "predictions", label: "⚽ Gruppespill" },
     ...(settings?.playoff_open ? [{ id: "playoff", label: "🏆 Sluttspill" }] : []),
     { id: "bonus", label: "🎯 Bonus" },
     { id: "leaderboard", label: "🥇 Ledertavle" },
+    ...(showAllPredictions ? [{ id: "allpredictions", label: "👀 Alles tips" }] : []),
     { id: "rules", label: "📋 Regler" },
-    ...(profile?.is_admin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
+    ...(isAdmin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ]
 
   return (
@@ -83,10 +95,15 @@ export default function Dashboard({ session }) {
         <div style={{ display: activeTab === "leaderboard" ? "block" : "none" }}>
           <Leaderboard />
         </div>
+        {showAllPredictions && (
+          <div style={{ display: activeTab === "allpredictions" ? "block" : "none" }}>
+            <AllPredictions />
+          </div>
+        )}
         <div style={{ display: activeTab === "rules" ? "block" : "none" }}>
           <Rules />
         </div>
-        {profile?.is_admin && (
+        {isAdmin && (
           <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
             <Admin />
           </div>
@@ -98,6 +115,11 @@ export default function Dashboard({ session }) {
 
 const styles = {
   container: { minHeight: '100vh', color: 'white' },
+  loadingContainer: {
+    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+  },
+  loadingText: { color: 'white', fontSize: '24px', fontWeight: 'bold' },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '16px 24px', background: 'rgba(0,0,0,0.3)',
