@@ -9,12 +9,19 @@ export default function BonusQuestions({ session }) {
   const [saving, setSaving] = useState({})
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
+  const [bettingOpen, setBettingOpen] = useState(true)
 
   useEffect(() => {
     fetchData()
   }, [])
 
   const fetchData = async () => {
+    const { data: settingsData } = await supabase
+      .from("app_settings")
+      .select("*")
+      .single()
+    if (settingsData) setBettingOpen(settingsData.bonus_betting_open)
+
     const { data: questionsData } = await supabase
       .from("bonus_questions")
       .select("*")
@@ -78,6 +85,14 @@ export default function BonusQuestions({ session }) {
 
   const renderInput = (question) => {
     const value = answers[question.id] || ""
+
+    if (!bettingOpen) {
+      return (
+        <div style={styles.lockedAnswer}>
+          {value ? `💬 ${value}` : "Ikke svart"}
+        </div>
+      )
+    }
 
     if (question.question_type === "yesno") {
       return (
@@ -175,7 +190,13 @@ export default function BonusQuestions({ session }) {
   return (
     <div>
       <h2 style={styles.title}>🎯 Bonusspørsmål</h2>
-      <p style={styles.subtitle}>Svar på alle spørsmålene for ekstrapoeng!</p>
+      {bettingOpen ? (
+        <p style={styles.subtitle}>Svar på alle spørsmålene for ekstrapoeng!</p>
+      ) : (
+        <div style={styles.closedBanner}>
+          🔒 Tippingen er stengt – VM er i gang! Her ser du dine innleverte svar.
+        </div>
+      )}
 
       {message && <div style={styles.message}>{message}</div>}
 
@@ -190,13 +211,15 @@ export default function BonusQuestions({ session }) {
 
             {renderInput(q)}
 
-            <button
-              style={{ ...styles.saveButton, opacity: saving[q.id] ? 0.6 : 1 }}
-              onClick={() => saveAnswer(q.id)}
-              disabled={saving[q.id]}
-            >
-              {saving[q.id] ? "Lagrer..." : answers[q.id] ? "✅ Oppdater svar" : "Lagre svar"}
-            </button>
+            {bettingOpen && (
+              <button
+                style={{ ...styles.saveButton, opacity: saving[q.id] ? 0.6 : 1 }}
+                onClick={() => saveAnswer(q.id)}
+                disabled={saving[q.id]}
+              >
+                {saving[q.id] ? "Lagrer..." : answers[q.id] ? "✅ Oppdater svar" : "Lagre svar"}
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -207,6 +230,11 @@ export default function BonusQuestions({ session }) {
 const styles = {
   title: { color: 'white', fontSize: '22px', marginBottom: '8px' },
   subtitle: { color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginBottom: '20px' },
+  closedBanner: {
+    padding: '12px 16px', borderRadius: '8px',
+    background: 'rgba(233,69,96,0.2)', border: '1px solid rgba(233,69,96,0.4)',
+    color: 'white', marginBottom: '20px', fontSize: '14px',
+  },
   loading: { color: 'white', textAlign: 'center', padding: '40px' },
   message: {
     padding: '12px 16px', borderRadius: '8px',
@@ -228,6 +256,12 @@ const styles = {
     borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
   },
   questionText: { color: 'white', fontSize: '16px', marginBottom: '14px', lineHeight: '1.4' },
+  lockedAnswer: {
+    padding: '12px', borderRadius: '8px',
+    background: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.7)', fontSize: '15px',
+    marginBottom: '12px',
+  },
   yesNoRow: { display: 'flex', gap: '10px', marginBottom: '12px' },
   yesNoButton: {
     flex: 1, padding: '12px', borderRadius: '8px',

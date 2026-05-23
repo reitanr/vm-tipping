@@ -7,7 +7,13 @@ export default function Admin() {
   const [bonusQuestions, setBonusQuestions] = useState([])
   const [results, setResults] = useState({})
   const [bonusAnswers, setBonusAnswers] = useState({})
-  const [settings, setSettings] = useState({ playoff_open: false, betting_open: true, show_all_predictions: false })
+  const [settings, setSettings] = useState({
+    playoff_open: false,
+    betting_open: true,
+    show_all_predictions: false,
+    group_betting_open: true,
+    bonus_betting_open: true,
+  })
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState("settings")
@@ -96,6 +102,8 @@ export default function Admin() {
         playoff_open: settings.playoff_open,
         betting_open: settings.betting_open,
         show_all_predictions: settings.show_all_predictions,
+        group_betting_open: settings.group_betting_open,
+        bonus_betting_open: settings.bonus_betting_open,
       })
       .eq("id", 1)
 
@@ -271,21 +279,34 @@ export default function Admin() {
 
           <div style={styles.settingRow}>
             <div>
-              <div style={styles.settingLabel}>🔒 Tipping åpen</div>
-              <div style={styles.settingDesc}>Slå av for å stoppe tipping når VM starter</div>
+              <div style={styles.settingLabel}>⚽ Gruppespill-tipping åpen</div>
+              <div style={styles.settingDesc}>Slå av når VM starter 11. juni</div>
             </div>
             <button
-              style={{ ...styles.toggle, ...(settings.betting_open ? styles.toggleOn : styles.toggleOff) }}
-              onClick={() => setSettings(prev => ({ ...prev, betting_open: !prev.betting_open }))}
+              style={{ ...styles.toggle, ...(settings.group_betting_open ? styles.toggleOn : styles.toggleOff) }}
+              onClick={() => setSettings(prev => ({ ...prev, group_betting_open: !prev.group_betting_open }))}
             >
-              {settings.betting_open ? "PÅ" : "AV"}
+              {settings.group_betting_open ? "PÅ" : "AV"}
+            </button>
+          </div>
+
+          <div style={styles.settingRow}>
+            <div>
+              <div style={styles.settingLabel}>🎯 Bonusspørsmål-tipping åpen</div>
+              <div style={styles.settingDesc}>Slå av når VM starter 11. juni</div>
+            </div>
+            <button
+              style={{ ...styles.toggle, ...(settings.bonus_betting_open ? styles.toggleOn : styles.toggleOff) }}
+              onClick={() => setSettings(prev => ({ ...prev, bonus_betting_open: !prev.bonus_betting_open }))}
+            >
+              {settings.bonus_betting_open ? "PÅ" : "AV"}
             </button>
           </div>
 
           <div style={styles.settingRow}>
             <div>
               <div style={styles.settingLabel}>🏆 Sluttspill-tipping åpen</div>
-              <div style={styles.settingDesc}>Slå på når du har lagt inn 16-delsfinale-kampene</div>
+              <div style={styles.settingDesc}>Slå på etter gruppespillet er ferdig</div>
             </div>
             <button
               style={{ ...styles.toggle, ...(settings.playoff_open ? styles.toggleOn : styles.toggleOff) }}
@@ -298,7 +319,7 @@ export default function Admin() {
           <div style={styles.settingRow}>
             <div>
               <div style={styles.settingLabel}>👀 Vis alles tips</div>
-              <div style={styles.settingDesc}>Slå på etter tippefristen så alle kan se hverandres tips</div>
+              <div style={styles.settingDesc}>Slå på etter tippefristen</div>
             </div>
             <button
               style={{ ...styles.toggle, ...(settings.show_all_predictions ? styles.toggleOn : styles.toggleOff) }}
@@ -595,8 +616,7 @@ const styles = {
   buttonRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
   editButton: {
     flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
-    background: 'rgba(255,255,255,0.1)', color: 'white',
-    fontSize: '13px', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', cursor: 'pointer',
   },
   pointsButton: {
     flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
