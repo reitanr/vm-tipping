@@ -70,6 +70,12 @@ export default function BonusQuestions({ session }) {
     setSaving(prev => ({ ...prev, [questionId]: false }))
   }
 
+  const handleFocus = (e) => {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+  }
+
   const renderInput = (question) => {
     const value = answers[question.id] || ""
 
@@ -97,6 +103,7 @@ export default function BonusQuestions({ session }) {
         <select
           style={styles.select}
           value={value}
+          onFocus={handleFocus}
           onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
         >
           <option value="">-- Velg kamp --</option>
@@ -112,6 +119,7 @@ export default function BonusQuestions({ session }) {
         <select
           style={styles.select}
           value={value}
+          onFocus={handleFocus}
           onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
         >
           <option value="">-- Velg spiller --</option>
@@ -137,6 +145,7 @@ export default function BonusQuestions({ session }) {
         <select
           style={styles.select}
           value={value}
+          onFocus={handleFocus}
           onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
         >
           <option value="">-- Velg lag --</option>
@@ -155,6 +164,7 @@ export default function BonusQuestions({ session }) {
         type={question.question_type === "number" ? "number" : "text"}
         placeholder={question.question_type === "number" ? "Skriv et tall..." : "Skriv ditt svar..."}
         value={value}
+        onFocus={handleFocus}
         onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
       />
     )
