@@ -1,17 +1,51 @@
 import { useState, useEffect } from "react"
 import { supabase } from "../supabaseClient"
 
+// Offisielt FIFA bracket - hvilke kamper møter hverandre i neste runde
+const BRACKET = {
+  // 8-delsfinale: [kamp_posisjon_i_r16, kamp_posisjon_i_r16]
+  r8: [
+    [1, 3],   // Kamp 89: Vinner 74 vs Vinner 77
+    [0, 2],   // Kamp 90: Vinner 73 vs Vinner 75
+    [4, 6],   // Kamp 91: Vinner 76 vs Vinner 78  (pos 3 og 5 i 0-indeks)
+    [7, 5],   // Kamp 92: Vinner 79 vs Vinner 80
+    [10, 11], // Kamp 93: Vinner 83 vs Vinner 84
+    [8, 9],   // Kamp 94: Vinner 81 vs Vinner 82
+    [13, 15], // Kamp 95: Vinner 86 vs Vinner 88
+    [12, 14], // Kamp 96: Vinner 85 vs Vinner 87
+  ],
+  // Kvartfinale
+  qf: [
+    [0, 1],   // Kamp 97: Vinner 89 vs Vinner 90
+    [2, 3],   // Kamp 99: Vinner 91 vs Vinner 92
+    [4, 5],   // Kamp 98: Vinner 93 vs Vinner 94
+    [6, 7],   // Kamp 100: Vinner 95 vs Vinner 96
+  ],
+  // Semifinale
+  sf: [
+    [0, 1],   // Kamp 101: Vinner 97 vs Vinner 98
+    [2, 3],   // Kamp 102: Vinner 99 vs Vinner 100
+  ],
+  // Finale og bronsefinale
+  final: [
+    [0, 1],   // Finale: Vinner 101 vs Vinner 102
+  ],
+  bronze: [
+    [0, 1],   // Bronsefinale: Taper 101 vs Taper 102
+  ]
+}
+
 const ROUNDS = [
   { id: 'r16', label: '16-delsfinale' },
   { id: 'r8', label: '8-delsfinale' },
   { id: 'qf', label: 'Kvartfinale' },
   { id: 'sf', label: 'Semifinale' },
   { id: 'bronze', label: 'Bronsefinale' },
-  { id: 'final', label: 'Finale' },
+  { id: 'final', label: '🏆 Finale' },
 ]
 
 export default function Playoff({ session }) {
-  const [matches, setMatches] = useState([])
+  const [r16Matches, setR16Matches] = useState([])
   const [teams, setTeams] = useState({})
   const [predictions, setPredictions] = useState({})
   const [loading, setLoading] = useState(true)
@@ -29,7 +63,7 @@ export default function Playoff({ session }) {
       .from("app_settings")
       .select("*")
       .single()
-    if (settingsData) setBettingOpen(settingsData.group_betting_open)
+    if (settingsData) setBettingOpen(settingsData.playoff_open)
 
     const { data: teamsData } = await supabase.from("teams").select("*")
     const teamsMap = {}
@@ -39,8 +73,9 @@ export default function Playoff({ session }) {
     const { data: matchesData } = await supabase
       .from("playoff_matches")
       .select("*")
+      .eq("round", "r16")
       .order("position")
-    setMatches(matchesData || [])
+    setR16Matches(matchesData || [])
 
     const { data: predsData } = await supabase
       .from("playoff_predictions")
@@ -55,14 +90,159 @@ export default function Playoff({ session }) {
     setLoading(false)
   }
 
-  const savePrediction = async (matchId, homeScore, awayScore, winnerId) => {
+  // Hent hvem brukeren tippet vinner av en r16-kamp
+  const getPredictedWinner = (matchIndex) => {
+    const match = r16Matches[matchIndex]
+    if (!match) return null
+    const pred = predictions[match.id]
+    if (!pred) return null
+    if (pred.home_score > pred.away_score) return match.home_team_id
+    if (pred.away_score > pred.home_score) return match.away_team_id
+    return pred.winner_id || null
+  }
+
+  // Hent hvem brukeren tippet vinner av en r8-kamp
+  const getR8PredictedWinner = (matchIndex) => {
+    const [idx1, idx2] = BRACKET.r8[matchIndex]
+    const homeId = getPredictedWinner(idx1)
+    const awayId = getPredictedWinner(idx2)
+    if (!homeId || !awayId) return null
+
+    // Finn r8-kampen i databasen
+    const r8Match = getR8Match(matchIndex)
+    if (!r8Match) return null
+
+    const pred = predictions[r8Match.id]
+    if (!pred) return null
+    if (pred.home_score > pred.away_score) return homeId
+    if (pred.away_score > pred.home_score) return awayId
+    return pred.winner_id || null
+  }
+
+  // Generer r8-kamp basert på tipperens r16-resultater
+  const getR8Match = (matchIndex) => {
+    const [idx1, idx2] = BRACKET.r8[matchIndex]
+    const homeId = getPredictedWinner(idx1)
+    const awayId = getPredictedWinner(idx2)
+    if (!homeId || !awayId) return null
+    return { homeId, awayId, position: matchIndex }
+  }
+
+  // Generer qf-kamp
+  const getQFMatch = (matchIndex) => {
+    const [idx1, idx2] = BRACKET.qf[matchIndex]
+    const homeId = getR8PredictedWinner(idx1)
+    const awayId = getR8PredictedWinner(idx2)
+    if (!homeId || !awayId) return null
+    return { homeId, awayId, position: matchIndex }
+  }
+
+  const getQFPredictedWinner = (matchIndex) => {
+    const match = getQFMatch(matchIndex)
+    if (!match) return null
+    const qfDbMatch = getQFDbMatch(matchIndex)
+    if (!qfDbMatch) return null
+    const pred = predictions[qfDbMatch.id]
+    if (!pred) return null
+    if (pred.home_score > pred.away_score) return match.homeId
+    if (pred.away_score > pred.home_score) return match.awayId
+    return pred.winner_id || null
+  }
+
+  // Generer sf-kamp
+  const getSFMatch = (matchIndex) => {
+    const [idx1, idx2] = BRACKET.sf[matchIndex]
+    const homeId = getQFPredictedWinner(idx1)
+    const awayId = getQFPredictedWinner(idx2)
+    if (!homeId || !awayId) return null
+    return { homeId, awayId, position: matchIndex }
+  }
+
+  const getSFPredictedWinner = (matchIndex) => {
+    const match = getSFMatch(matchIndex)
+    if (!match) return null
+    const sfDbMatch = getSFDbMatch(matchIndex)
+    if (!sfDbMatch) return null
+    const pred = predictions[sfDbMatch.id]
+    if (!pred) return null
+    if (pred.home_score > pred.away_score) return match.homeId
+    if (pred.away_score > pred.home_score) return match.awayId
+    return pred.winner_id || null
+  }
+
+  const getSFLoser = (matchIndex) => {
+    const match = getSFMatch(matchIndex)
+    if (!match) return null
+    const winner = getSFPredictedWinner(matchIndex)
+    if (!winner) return null
+    return winner === match.homeId ? match.awayId : match.homeId
+  }
+
+  // Database-kamp ID-er for genererte kamper
+  const getR8DbMatch = (matchIndex) => {
+    // Vi bruker en virtuell ID basert på round og position
+    return { id: `r8_${matchIndex}`, round: 'r8', position: matchIndex }
+  }
+
+  const getQFDbMatch = (matchIndex) => {
+    return { id: `qf_${matchIndex}`, round: 'qf', position: matchIndex }
+  }
+
+  const getSFDbMatch = (matchIndex) => {
+    return { id: `sf_${matchIndex}`, round: 'sf', position: matchIndex }
+  }
+
+  const savePrediction = async (virtualMatchId, homeTeamId, awayTeamId, homeScore, awayScore, winnerId, round, position) => {
     if (homeScore === "" || awayScore === "") {
       setMessage("❌ Fyll inn begge scorene!")
       setTimeout(() => setMessage(""), 3000)
       return
     }
 
-    setSaving(prev => ({ ...prev, [matchId]: true }))
+    setSaving(prev => ({ ...prev, [virtualMatchId]: true }))
+
+    // For r16 bruker vi faktisk match_id fra databasen
+    // For andre runder lagrer vi med round og position
+    let matchId = null
+
+    if (round === 'r16') {
+      matchId = homeTeamId // Her er homeTeamId faktisk match.id for r16
+    } else {
+      // Finn eller opprett en playoff_match for denne runden/posisjonen
+      const { data: existing } = await supabase
+        .from("playoff_matches")
+        .select("id")
+        .eq("round", round)
+        .eq("position", position)
+        .single()
+
+      if (existing) {
+        matchId = existing.id
+      } else {
+        const { data: newMatch } = await supabase
+          .from("playoff_matches")
+          .insert({
+            round,
+            position,
+            home_team_id: homeTeamId,
+            away_team_id: awayTeamId,
+          })
+          .select()
+          .single()
+        matchId = newMatch?.id
+      }
+    }
+
+    if (!matchId) {
+      setMessage("❌ Noe gikk galt")
+      setSaving(prev => ({ ...prev, [virtualMatchId]: false }))
+      return
+    }
+
+    const isDrawn = parseInt(homeScore) === parseInt(awayScore)
+    const autoWinner = !isDrawn
+      ? parseInt(homeScore) > parseInt(awayScore) ? homeTeamId : awayTeamId
+      : winnerId
 
     const { error } = await supabase
       .from("playoff_predictions")
@@ -71,7 +251,7 @@ export default function Playoff({ session }) {
         match_id: matchId,
         home_score: parseInt(homeScore),
         away_score: parseInt(awayScore),
-        winner_id: winnerId,
+        winner_id: autoWinner,
       }, { onConflict: "user_id,match_id" })
 
     if (error) setMessage("❌ Noe gikk galt")
@@ -83,49 +263,37 @@ export default function Playoff({ session }) {
           match_id: matchId,
           home_score: parseInt(homeScore),
           away_score: parseInt(awayScore),
-          winner_id: winnerId,
+          winner_id: autoWinner,
         }
       }))
     }
     setTimeout(() => setMessage(""), 3000)
-    setSaving(prev => ({ ...prev, [matchId]: false }))
+    setSaving(prev => ({ ...prev, [virtualMatchId]: false }))
   }
 
-  const MatchCard = ({ match }) => {
-    const home = teams[match.home_team_id]
-    const away = teams[match.away_team_id]
-    const pred = predictions[match.id]
+  const MatchCard = ({ matchId, homeId, awayId, round, position, isSavingKey }) => {
+    const home = teams[homeId]
+    const away = teams[awayId]
+    const pred = predictions[matchId]
     const [homeScore, setHomeScore] = useState(pred?.home_score?.toString() ?? "")
     const [awayScore, setAwayScore] = useState(pred?.away_score?.toString() ?? "")
     const [winner, setWinner] = useState(pred?.winner_id || null)
 
-    const isDrawn = homeScore !== "" && awayScore !== "" && 
-      parseInt(homeScore) === parseInt(awayScore) &&
-      match.round !== 'group'
-
-    const autoWinner = !isDrawn && homeScore !== "" && awayScore !== ""
-      ? parseInt(homeScore) > parseInt(awayScore) ? match.home_team_id : match.away_team_id
-      : null
-
-    const hasPred = pred !== undefined
-
     if (!home || !away) {
       return (
         <div style={styles.matchCard}>
-          <div style={styles.tbd}>⏳ Venter på at lagene blir klare</div>
+          <div style={styles.tbd}>⏳ Tippe tidligere runder for å se denne kampen</div>
         </div>
       )
     }
 
+    const isDrawn = homeScore !== "" && awayScore !== "" &&
+      parseInt(homeScore) === parseInt(awayScore)
+
+    const hasPred = pred !== undefined
+
     return (
       <div style={{ ...styles.matchCard, ...(hasPred ? styles.matchCardDone : {}) }}>
-        {match.match_date && (
-          <div style={styles.matchDate}>
-            {new Date(match.match_date).toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </div>
-        )}
-        {match.stadium && <div style={styles.matchStadium}>{match.stadium}</div>}
-
         <div style={styles.matchRow}>
           <div style={styles.team}>
             <span style={styles.flag}>{home.flag_emoji}</span>
@@ -169,14 +337,14 @@ export default function Playoff({ session }) {
             <p style={styles.winnerLabel}>🏆 Hvem går videre?</p>
             <div style={styles.winnerButtons}>
               <button
-                style={{ ...styles.winnerButton, ...(winner === home.id ? styles.winnerActive : {}) }}
-                onClick={() => setWinner(home.id)}
+                style={{ ...styles.winnerButton, ...(winner === homeId ? styles.winnerActive : {}) }}
+                onClick={() => setWinner(homeId)}
               >
                 {home.flag_emoji} {home.name}
               </button>
               <button
-                style={{ ...styles.winnerButton, ...(winner === away.id ? styles.winnerActive : {}) }}
-                onClick={() => setWinner(away.id)}
+                style={{ ...styles.winnerButton, ...(winner === awayId ? styles.winnerActive : {}) }}
+                onClick={() => setWinner(awayId)}
               >
                 {away.flag_emoji} {away.name}
               </button>
@@ -184,7 +352,7 @@ export default function Playoff({ session }) {
           </div>
         )}
 
-        {!bettingOpen && hasPred && pred.winner_id && isDrawn && (
+        {!bettingOpen && hasPred && pred.winner_id && (
           <div style={styles.lockedWinner}>
             🏆 Videre: {teams[pred.winner_id]?.flag_emoji} {teams[pred.winner_id]?.name}
           </div>
@@ -192,21 +360,19 @@ export default function Playoff({ session }) {
 
         {bettingOpen && (
           <button
-            style={{ ...styles.saveButton, opacity: saving[match.id] ? 0.6 : 1 }}
+            style={{ ...styles.saveButton, opacity: saving[isSavingKey] ? 0.6 : 1 }}
             onClick={() => savePrediction(
-              match.id, homeScore, awayScore,
-              isDrawn ? winner : autoWinner
+              matchId, homeId, awayId, homeScore, awayScore,
+              isDrawn ? winner : null, round, position
             )}
-            disabled={saving[match.id]}
+            disabled={saving[isSavingKey]}
           >
-            {saving[match.id] ? "Lagrer..." : hasPred ? "✅ Oppdater" : "Lagre tipp"}
+            {saving[isSavingKey] ? "Lagrer..." : hasPred ? "✅ Oppdater" : "Lagre tipp"}
           </button>
         )}
       </div>
     )
   }
-
-  const roundMatches = matches.filter(m => m.round === activeRound)
 
   if (loading) return <div style={styles.loading}>Laster sluttspill...</div>
 
@@ -214,7 +380,7 @@ export default function Playoff({ session }) {
     <div>
       <h2 style={styles.title}>🏆 Sluttspill</h2>
       {bettingOpen ? (
-        <p style={styles.subtitle}>Tipp alle sluttspillkampene!</p>
+        <p style={styles.subtitle}>Tipp alle sluttspillkampene – bracketet genereres automatisk!</p>
       ) : (
         <div style={styles.closedBanner}>
           🔒 Tippingen er stengt – her ser du dine innleverte tips.
@@ -224,30 +390,136 @@ export default function Playoff({ session }) {
       {message && <div style={styles.message}>{message}</div>}
 
       <div style={styles.roundTabs}>
-        {ROUNDS.map(r => {
-          const count = matches.filter(m => m.round === r.id).length
-          return (
-            <button
-              key={r.id}
-              style={{ ...styles.roundTab, ...(activeRound === r.id ? styles.activeRoundTab : {}) }}
-              onClick={() => setActiveRound(r.id)}
-            >
-              {r.label}
-              {count > 0 && <span style={styles.roundCount}> ({count})</span>}
-            </button>
-          )
-        })}
+        {ROUNDS.map(r => (
+          <button
+            key={r.id}
+            style={{ ...styles.roundTab, ...(activeRound === r.id ? styles.activeRoundTab : {}) }}
+            onClick={() => setActiveRound(r.id)}
+          >
+            {r.label}
+          </button>
+        ))}
       </div>
 
-      {roundMatches.length === 0 ? (
-        <div style={styles.empty}>
-          ⏳ Kampene for denne runden er ikke lagt inn ennå.
-        </div>
-      ) : (
+      {activeRound === 'r16' && (
         <div style={styles.matches}>
-          {roundMatches.map(match => (
-            <MatchCard key={match.id} match={match} />
-          ))}
+          {r16Matches.length === 0 ? (
+            <div style={styles.empty}>⏳ 16-delsfinale-kampene er ikke lagt inn ennå.</div>
+          ) : (
+            r16Matches.map((match, index) => (
+              <MatchCard
+                key={match.id}
+                matchId={match.id}
+                homeId={match.home_team_id}
+                awayId={match.away_team_id}
+                round="r16"
+                position={index}
+                isSavingKey={match.id}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {activeRound === 'r8' && (
+        <div style={styles.matches}>
+          {BRACKET.r8.map((pair, index) => {
+            const match = getR8Match(index)
+            const dbMatch = getR8DbMatch(index)
+            const existingPred = Object.values(predictions).find(p =>
+              p.match_id === `r8_${index}` || false
+            )
+
+            return (
+              <div key={index}>
+                <div style={styles.matchLabel}>
+                  Kamp {index + 1}: Vinner kamp {pair[0] + 1} vs Vinner kamp {pair[1] + 1}
+                </div>
+                <MatchCard
+                  matchId={dbMatch.id}
+                  homeId={match?.homeId}
+                  awayId={match?.awayId}
+                  round="r8"
+                  position={index}
+                  isSavingKey={dbMatch.id}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {activeRound === 'qf' && (
+        <div style={styles.matches}>
+          {BRACKET.qf.map((pair, index) => {
+            const match = getQFMatch(index)
+            const dbMatch = getQFDbMatch(index)
+
+            return (
+              <div key={index}>
+                <div style={styles.matchLabel}>Kvartfinale {index + 1}</div>
+                <MatchCard
+                  matchId={dbMatch.id}
+                  homeId={match?.homeId}
+                  awayId={match?.awayId}
+                  round="qf"
+                  position={index}
+                  isSavingKey={dbMatch.id}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {activeRound === 'sf' && (
+        <div style={styles.matches}>
+          {BRACKET.sf.map((pair, index) => {
+            const match = getSFMatch(index)
+            const dbMatch = getSFDbMatch(index)
+
+            return (
+              <div key={index}>
+                <div style={styles.matchLabel}>Semifinale {index + 1}</div>
+                <MatchCard
+                  matchId={dbMatch.id}
+                  homeId={match?.homeId}
+                  awayId={match?.awayId}
+                  round="sf"
+                  position={index}
+                  isSavingKey={dbMatch.id}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {activeRound === 'bronze' && (
+        <div style={styles.matches}>
+          <div style={styles.matchLabel}>Bronsefinale</div>
+          <MatchCard
+            matchId="bronze_0"
+            homeId={getSFLoser(0)}
+            awayId={getSFLoser(1)}
+            round="bronze"
+            position={0}
+            isSavingKey="bronze_0"
+          />
+        </div>
+      )}
+
+      {activeRound === 'final' && (
+        <div style={styles.matches}>
+          <div style={styles.matchLabel}>🏆 VM-FINALEN</div>
+          <MatchCard
+            matchId="final_0"
+            homeId={getSFPredictedWinner(0)}
+            awayId={getSFPredictedWinner(1)}
+            round="final"
+            position={0}
+            isSavingKey="final_0"
+          />
         </div>
       )}
     </div>
@@ -280,16 +552,20 @@ const styles = {
     color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '13px', fontWeight: '500',
   },
   activeRoundTab: { background: '#e94560', border: '1px solid #e94560', color: 'white' },
-  roundCount: { fontSize: '11px', opacity: 0.7 },
   matches: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  matchLabel: {
+    color: 'rgba(255,255,255,0.5)', fontSize: '12px',
+    marginBottom: '4px', marginTop: '8px',
+  },
   matchCard: {
     background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
     padding: '16px', border: '1px solid rgba(255,255,255,0.1)',
   },
   matchCardDone: { border: '1px solid rgba(39, 174, 96, 0.3)' },
-  tbd: { color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '20px', fontSize: '14px' },
-  matchDate: { color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' },
-  matchStadium: { color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginBottom: '8px' },
+  tbd: {
+    color: 'rgba(255,255,255,0.3)', textAlign: 'center',
+    padding: '20px', fontSize: '14px',
+  },
   matchRow: { display: 'flex', alignItems: 'center', gap: '12px', margin: '8px 0' },
   team: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px' },
   flag: { fontSize: '24px' },
