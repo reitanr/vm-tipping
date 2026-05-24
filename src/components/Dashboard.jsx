@@ -6,6 +6,7 @@ import BonusQuestions from "./BonusQuestions"
 import Admin from "./Admin"
 import Rules from "./Rules"
 import AllPredictions from "./AllPredictions"
+import Playoff from "./Playoff"
 
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
@@ -41,7 +42,6 @@ export default function Dashboard({ session }) {
   const isAdmin = profile?.is_admin
   const showAllPredictions = isAdmin || settings?.show_all_predictions === true
 
-  // Ikke vis fanene før innstillingene er lastet
   if (!settings) return (
     <div style={styles.loadingContainer}>
       <div style={styles.loadingText}>🏆 Laster...</div>
@@ -88,6 +88,9 @@ export default function Dashboard({ session }) {
       <div style={styles.content}>
         <div style={{ display: activeTab === "predictions" ? "block" : "none" }}>
           <Predictions session={session} />
+        </div>
+        <div style={{ display: activeTab === "playoff" ? "block" : "none" }}>
+          <Playoff session={session} />
         </div>
         <div style={{ display: activeTab === "bonus" ? "block" : "none" }}>
           <BonusQuestions session={session} />
