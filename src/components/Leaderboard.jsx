@@ -23,9 +23,13 @@ export default function Leaderboard() {
       .from("bonus_predictions")
       .select("user_id, points_awarded")
 
+    const { data: playoffPreds } = await supabase
+      .from("playoff_predictions")
+      .select("user_id, points_awarded")
+
     const scoreMap = {}
     profiles?.forEach(p => {
-      scoreMap[p.id] = { username: p.username, matchPoints: 0, bonusPoints: 0 }
+      scoreMap[p.id] = { username: p.username, matchPoints: 0, bonusPoints: 0, playoffPoints: 0 }
     })
 
     matchPreds?.forEach(p => {
@@ -36,8 +40,12 @@ export default function Leaderboard() {
       if (scoreMap[p.user_id]) scoreMap[p.user_id].bonusPoints += p.points_awarded || 0
     })
 
+    playoffPreds?.forEach(p => {
+      if (scoreMap[p.user_id]) scoreMap[p.user_id].playoffPoints += p.points_awarded || 0
+    })
+
     const sorted = Object.values(scoreMap)
-      .map(s => ({ ...s, total: s.matchPoints + s.bonusPoints }))
+      .map(s => ({ ...s, total: s.matchPoints + s.bonusPoints + s.playoffPoints }))
       .sort((a, b) => b.total - a.total)
 
     setScores(sorted)
@@ -75,7 +83,7 @@ export default function Leaderboard() {
               <div style={styles.points}>
                 <div style={styles.totalPoints}>{score.total} poeng</div>
                 <div style={styles.breakdown}>
-                  ⚽ {score.matchPoints} + 🎯 {score.bonusPoints}
+                  ⚽ {score.matchPoints} + 🏆 {score.playoffPoints} + 🎯 {score.bonusPoints}
                 </div>
               </div>
             </div>

@@ -1,29 +1,27 @@
 import { useState, useEffect } from "react"
 import { supabase } from "../supabaseClient"
 
-// Offisielt FIFA bracket - 0-indeksert basert på posisjon i r16
-// Posisjon 0 = kamp 73, posisjon 1 = kamp 74 osv.
 const R8_BRACKET = [
-  [1, 4],   // Kamp 89: Vinner 74 vs Vinner 77
-  [0, 2],   // Kamp 90: Vinner 73 vs Vinner 75
-  [3, 5],   // Kamp 91: Vinner 76 vs Vinner 78
-  [6, 7],   // Kamp 92: Vinner 79 vs Vinner 80
-  [10, 11], // Kamp 93: Vinner 83 vs Vinner 84
-  [8, 9],   // Kamp 94: Vinner 81 vs Vinner 82
-  [13, 15], // Kamp 95: Vinner 86 vs Vinner 88
-  [12, 14], // Kamp 96: Vinner 85 vs Vinner 87
+  [1, 4],
+  [0, 2],
+  [3, 5],
+  [6, 7],
+  [10, 11],
+  [8, 9],
+  [13, 15],
+  [12, 14],
 ]
 
 const QF_BRACKET = [
-  [0, 1], // Kamp 97: Vinner 89 vs Vinner 90
-  [2, 3], // Kamp 99: Vinner 91 vs Vinner 92
-  [4, 5], // Kamp 98: Vinner 93 vs Vinner 94
-  [6, 7], // Kamp 100: Vinner 95 vs Vinner 96
+  [0, 1],
+  [2, 3],
+  [4, 5],
+  [6, 7],
 ]
 
 const SF_BRACKET = [
-  [0, 1], // Kamp 101: Vinner 97 vs Vinner 98
-  [2, 3], // Kamp 102: Vinner 99 vs Vinner 100
+  [0, 1],
+  [2, 3],
 ]
 
 const ROUNDS = [
@@ -34,6 +32,9 @@ const ROUNDS = [
   { id: 'bronze', label: 'Bronsefinale' },
   { id: 'final', label: '🏆 Finale' },
 ]
+
+// FIFA kampnummer mapping
+const FIFA_MATCH_NUMBERS = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88]
 
 export default function Playoff({ session }) {
   const [r16Matches, setR16Matches] = useState([])
@@ -81,18 +82,16 @@ export default function Playoff({ session }) {
     setLoading(false)
   }
 
-  // Hent predicted winner for en r16-kamp (basert på match.id)
   const getR16Winner = (matchIndex) => {
     const match = r16Matches[matchIndex]
     if (!match) return null
-    const pred = predictions[match.id]
+    const pred = predictions[String(match.id)]
     if (!pred) return null
     if (pred.home_score > pred.away_score) return match.home_team_id
     if (pred.away_score > pred.home_score) return match.away_team_id
     return pred.winner_id || null
   }
 
-  // Hent predicted winner for en r8-kamp (basert på virtual key)
   const getR8Winner = (r8Index) => {
     const key = `r8_${r8Index}`
     const pred = predictions[key]
@@ -148,7 +147,7 @@ export default function Playoff({ session }) {
       return
     }
 
-    const key = match.id
+    const key = String(match.id)
     setSaving(prev => ({ ...prev, [key]: true }))
 
     const isDrawn = parseInt(homeScore) === parseInt(awayScore)
@@ -160,22 +159,24 @@ export default function Playoff({ session }) {
       .from("playoff_predictions")
       .upsert({
         user_id: session.user.id,
-        match_id: match.id,
+        match_id: String(match.id),
         home_score: parseInt(homeScore),
         away_score: parseInt(awayScore),
-        winner_id: autoWinner,
+        winner_id: autoWinner || null,
       }, { onConflict: "user_id,match_id" })
 
-    if (error) setMessage("❌ Noe gikk galt")
-    else {
+    if (error) {
+      console.error("Error saving r16:", error)
+      setMessage("❌ " + error.message)
+    } else {
       setMessage("✅ Tipp lagret!")
       setPredictions(prev => ({
         ...prev,
-        [match.id]: {
-          match_id: match.id,
+        [key]: {
+          match_id: key,
           home_score: parseInt(homeScore),
           away_score: parseInt(awayScore),
-          winner_id: autoWinner,
+          winner_id: autoWinner || null,
         }
       }))
     }
@@ -197,7 +198,6 @@ export default function Playoff({ session }) {
       ? parseInt(homeScore) > parseInt(awayScore) ? homeId : awayId
       : winnerId
 
-    // Lagre med virtual key som match_id
     const { error } = await supabase
       .from("playoff_predictions")
       .upsert({
@@ -205,11 +205,13 @@ export default function Playoff({ session }) {
         match_id: virtualKey,
         home_score: parseInt(homeScore),
         away_score: parseInt(awayScore),
-        winner_id: autoWinner,
+        winner_id: autoWinner || null,
       }, { onConflict: "user_id,match_id" })
 
-    if (error) setMessage("❌ Noe gikk galt")
-    else {
+    if (error) {
+      console.error("Error saving virtual:", error)
+      setMessage("❌ " + error.message)
+    } else {
       setMessage("✅ Tipp lagret!")
       setPredictions(prev => ({
         ...prev,
@@ -217,7 +219,7 @@ export default function Playoff({ session }) {
           match_id: virtualKey,
           home_score: parseInt(homeScore),
           away_score: parseInt(awayScore),
-          winner_id: autoWinner,
+          winner_id: autoWinner || null,
         }
       }))
     }
@@ -228,16 +230,17 @@ export default function Playoff({ session }) {
   const R16MatchCard = ({ match, index }) => {
     const home = teams[match.home_team_id]
     const away = teams[match.away_team_id]
-    const pred = predictions[match.id]
+    const pred = predictions[String(match.id)]
     const [homeScore, setHomeScore] = useState(pred?.home_score?.toString() ?? "")
     const [awayScore, setAwayScore] = useState(pred?.away_score?.toString() ?? "")
     const [winner, setWinner] = useState(pred?.winner_id || null)
     const isDrawn = homeScore !== "" && awayScore !== "" && parseInt(homeScore) === parseInt(awayScore)
     const hasPred = pred !== undefined
+    const fifaNum = FIFA_MATCH_NUMBERS[index] || (73 + index)
 
     return (
       <div style={{ ...styles.matchCard, ...(hasPred ? styles.matchCardDone : {}) }}>
-        <div style={styles.matchLabel}>Kamp {index + 1}</div>
+        <div style={styles.matchLabel}>Kamp {fifaNum}</div>
         <div style={styles.matchRow}>
           <div style={styles.team}>
             <span style={styles.flag}>{home?.flag_emoji}</span>
@@ -279,17 +282,17 @@ export default function Playoff({ session }) {
           </div>
         )}
         {bettingOpen && (
-          <button style={{ ...styles.saveButton, opacity: saving[match.id] ? 0.6 : 1 }}
+          <button style={{ ...styles.saveButton, opacity: saving[String(match.id)] ? 0.6 : 1 }}
             onClick={() => saveR16Prediction(match, homeScore, awayScore, winner)}
-            disabled={saving[match.id]}>
-            {saving[match.id] ? "Lagrer..." : hasPred ? "✅ Oppdater" : "Lagre tipp"}
+            disabled={saving[String(match.id)]}>
+            {saving[String(match.id)] ? "Lagrer..." : hasPred ? "✅ Oppdater" : "Lagre tipp"}
           </button>
         )}
       </div>
     )
   }
 
-  const VirtualMatchCard = ({ virtualKey, homeId, awayId }) => {
+  const VirtualMatchCard = ({ virtualKey, homeId, awayId, label }) => {
     const home = teams[homeId]
     const away = teams[awayId]
     const pred = predictions[virtualKey]
@@ -317,6 +320,7 @@ export default function Playoff({ session }) {
 
     return (
       <div style={{ ...styles.matchCard, ...(hasPred ? styles.matchCardDone : {}) }}>
+        {label && <div style={styles.matchLabel}>{label}</div>}
         <div style={styles.matchRow}>
           <div style={styles.team}>
             <span style={styles.flag}>{home.flag_emoji}</span>
@@ -409,13 +413,11 @@ export default function Playoff({ session }) {
         <div style={styles.matches}>
           {R8_BRACKET.map((pair, index) => (
             <div key={index}>
-              <div style={styles.roundLabel}>
-                8-delsfinale {index + 1}: Vinner kamp {pair[0] + 1} vs Vinner kamp {pair[1] + 1}
-              </div>
               <VirtualMatchCard
                 virtualKey={`r8_${index}`}
                 homeId={getR16Winner(pair[0])}
                 awayId={getR16Winner(pair[1])}
+                label={`Kamp ${89 + index}: Vinner kamp ${FIFA_MATCH_NUMBERS[pair[0]]} vs Vinner kamp ${FIFA_MATCH_NUMBERS[pair[1]]}`}
               />
             </div>
           ))}
@@ -426,11 +428,11 @@ export default function Playoff({ session }) {
         <div style={styles.matches}>
           {QF_BRACKET.map((pair, index) => (
             <div key={index}>
-              <div style={styles.roundLabel}>Kvartfinale {index + 1}</div>
               <VirtualMatchCard
                 virtualKey={`qf_${index}`}
                 homeId={getR8Winner(pair[0])}
                 awayId={getR8Winner(pair[1])}
+                label={`Kvartfinale ${index + 1}`}
               />
             </div>
           ))}
@@ -441,11 +443,11 @@ export default function Playoff({ session }) {
         <div style={styles.matches}>
           {SF_BRACKET.map((pair, index) => (
             <div key={index}>
-              <div style={styles.roundLabel}>Semifinale {index + 1}</div>
               <VirtualMatchCard
                 virtualKey={`sf_${index}`}
                 homeId={getQFWinner(pair[0])}
                 awayId={getQFWinner(pair[1])}
+                label={`Semifinale ${index + 1}`}
               />
             </div>
           ))}
@@ -454,22 +456,22 @@ export default function Playoff({ session }) {
 
       {activeRound === 'bronze' && (
         <div style={styles.matches}>
-          <div style={styles.roundLabel}>🥉 Bronsefinale</div>
           <VirtualMatchCard
             virtualKey="bronze_0"
             homeId={getSFLoser(0)}
             awayId={getSFLoser(1)}
+            label="🥉 Bronsefinale"
           />
         </div>
       )}
 
       {activeRound === 'final' && (
         <div style={styles.matches}>
-          <div style={styles.roundLabel}>🏆 VM-FINALEN</div>
           <VirtualMatchCard
             virtualKey="final_0"
             homeId={getSFWinner(0)}
             awayId={getSFWinner(1)}
+            label="🏆 VM-FINALEN"
           />
         </div>
       )}
@@ -505,12 +507,8 @@ const styles = {
   activeRoundTab: { background: '#e94560', border: '1px solid #e94560', color: 'white' },
   matches: { display: 'flex', flexDirection: 'column', gap: '12px' },
   matchLabel: {
-    color: 'rgba(255,255,255,0.4)', fontSize: '11px',
-    marginBottom: '2px', marginTop: '4px',
-  },
-  roundLabel: {
-    color: 'rgba(255,255,255,0.6)', fontSize: '13px',
-    marginBottom: '6px', marginTop: '8px', fontWeight: 'bold',
+    color: 'rgba(255,255,255,0.5)', fontSize: '12px',
+    marginBottom: '4px', marginTop: '4px',
   },
   matchCard: {
     background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
