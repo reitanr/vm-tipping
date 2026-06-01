@@ -8,6 +8,90 @@ import Rules from "./Rules"
 import AllPredictions from "./AllPredictions"
 import Playoff from "./Playoff"
 
+function Countdown() {
+  const [timeLeft, setTimeLeft] = useState({})
+  const [started, setStarted] = useState(false)
+
+  useEffect(() => {
+    const target = new Date('2026-06-11T19:00:00Z') // 11. juni kl 21:00 norsk tid
+
+    const update = () => {
+      const now = new Date()
+      const diff = target - now
+
+      if (diff <= 0) {
+        setStarted(true)
+        return
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+      setTimeLeft({ days, hours, minutes, seconds })
+    }
+
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (started) return (
+    <div style={countdownStyles.banner}>
+      <span style={countdownStyles.emoji}>⚽</span>
+      <span style={countdownStyles.text}>VM 2026 er i gang!</span>
+    </div>
+  )
+
+  return (
+    <div style={countdownStyles.banner}>
+      <span style={countdownStyles.label}>⏳ VM starter om:</span>
+      <div style={countdownStyles.units}>
+        <div style={countdownStyles.unit}>
+          <span style={countdownStyles.number}>{timeLeft.days}</span>
+          <span style={countdownStyles.unitLabel}>dager</span>
+        </div>
+        <span style={countdownStyles.separator}>:</span>
+        <div style={countdownStyles.unit}>
+          <span style={countdownStyles.number}>{String(timeLeft.hours).padStart(2, '0')}</span>
+          <span style={countdownStyles.unitLabel}>timer</span>
+        </div>
+        <span style={countdownStyles.separator}>:</span>
+        <div style={countdownStyles.unit}>
+          <span style={countdownStyles.number}>{String(timeLeft.minutes).padStart(2, '0')}</span>
+          <span style={countdownStyles.unitLabel}>min</span>
+        </div>
+        <span style={countdownStyles.separator}>:</span>
+        <div style={countdownStyles.unit}>
+          <span style={countdownStyles.number}>{String(timeLeft.seconds).padStart(2, '0')}</span>
+          <span style={countdownStyles.unitLabel}>sek</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const countdownStyles = {
+  banner: {
+    background: 'linear-gradient(135deg, rgba(233,69,96,0.3), rgba(12,52,96,0.3))',
+    borderBottom: '1px solid rgba(233,69,96,0.3)',
+    padding: '12px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '16px',
+    flexWrap: 'wrap',
+  },
+  label: { color: 'rgba(255,255,255,0.7)', fontSize: '14px' },
+  emoji: { fontSize: '24px' },
+  text: { color: 'white', fontSize: '18px', fontWeight: 'bold' },
+  units: { display: 'flex', alignItems: 'center', gap: '8px' },
+  unit: { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '48px' },
+  number: { color: 'white', fontSize: '24px', fontWeight: 'bold', lineHeight: 1 },
+  unitLabel: { color: 'rgba(255,255,255,0.5)', fontSize: '10px', marginTop: '2px' },
+  separator: { color: 'rgba(255,255,255,0.4)', fontSize: '24px', fontWeight: 'bold', marginBottom: '12px' },
+}
+
 export default function Dashboard({ session }) {
   const [activeTab, setActiveTab] = useState("predictions")
   const [profile, setProfile] = useState(null)
@@ -72,6 +156,8 @@ export default function Dashboard({ session }) {
           Logg ut
         </button>
       </div>
+
+      <Countdown />
 
       <div style={styles.tabs}>
         {tabs.map(tab => (
