@@ -7,13 +7,14 @@ import Admin from "./Admin"
 import Rules from "./Rules"
 import AllPredictions from "./AllPredictions"
 import Playoff from "./Playoff"
+import Statistics from "./Statistics"
 
 function Countdown() {
   const [timeLeft, setTimeLeft] = useState({})
   const [started, setStarted] = useState(false)
 
   useEffect(() => {
-    const target = new Date('2026-06-11T19:00:00Z') // 11. juni kl 21:00 norsk tid
+    const target = new Date('2026-06-11T19:00:00Z')
 
     const update = () => {
       const now = new Date()
@@ -76,11 +77,8 @@ const countdownStyles = {
     background: 'linear-gradient(135deg, rgba(233,69,96,0.3), rgba(12,52,96,0.3))',
     borderBottom: '1px solid rgba(233,69,96,0.3)',
     padding: '12px 24px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '16px',
-    flexWrap: 'wrap',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: '16px', flexWrap: 'wrap',
   },
   label: { color: 'rgba(255,255,255,0.7)', fontSize: '14px' },
   emoji: { fontSize: '24px' },
@@ -137,6 +135,7 @@ export default function Dashboard({ session }) {
     ...(settings?.playoff_open ? [{ id: "playoff", label: "🏆 Sluttspill" }] : []),
     { id: "bonus", label: "🎯 Bonus" },
     { id: "leaderboard", label: "🥇 Ledertavle" },
+    { id: "statistics", label: "📊 Statistikk" },
     ...(showAllPredictions ? [{ id: "allpredictions", label: "👀 Alles tips" }] : []),
     { id: "rules", label: "📋 Regler" },
     ...(isAdmin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
@@ -183,6 +182,9 @@ export default function Dashboard({ session }) {
         </div>
         <div style={{ display: activeTab === "leaderboard" ? "block" : "none" }}>
           <Leaderboard />
+        </div>
+        <div style={{ display: activeTab === "statistics" ? "block" : "none" }}>
+          <Statistics />
         </div>
         {showAllPredictions && (
           <div style={{ display: activeTab === "allpredictions" ? "block" : "none" }}>
