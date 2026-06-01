@@ -46,6 +46,7 @@ export default function Predictions({ session }) {
       predsMap[p.match_id] = {
         home: p.home_score.toString(),
         away: p.away_score.toString(),
+        points_awarded: p.points_awarded,
       }
     })
     setPredictions(predsMap)
@@ -56,10 +57,7 @@ export default function Predictions({ session }) {
     if (value !== "" && (isNaN(value) || parseInt(value) < 0)) return
     setPredictions(prev => ({
       ...prev,
-      [matchId]: {
-        ...prev[matchId],
-        [side]: value,
-      }
+      [matchId]: { ...prev[matchId], [side]: value }
     }))
   }
 
@@ -82,11 +80,8 @@ export default function Predictions({ session }) {
         away_score: parseInt(pred.away),
       }, { onConflict: "user_id,match_id" })
 
-    if (error) {
-      setMessage("❌ Noe gikk galt, prøv igjen")
-    } else {
-      setMessage("✅ Tipp lagret!")
-    }
+    if (error) setMessage("❌ Noe gikk galt, prøv igjen")
+    else setMessage("✅ Tipp lagret!")
     setTimeout(() => setMessage(""), 3000)
     setSaving(prev => ({ ...prev, [matchId]: false }))
   }
@@ -110,13 +105,29 @@ export default function Predictions({ session }) {
     setTimeout(() => setMessage(""), 3000)
   }
 
+  const getResultStyle = (match, pred) => {
+    if (!match.home_score === null || match.home_score === null) return null
+    if (!pred) return null
+
+    const actualHome = match.home_score
+    const actualAway = match.away_score
+    const predHome = parseInt(pred.home)
+    const predAway = parseInt(pred.away)
+
+    if (predHome === actualHome && predAway === actualAway) return 'exact'
+
+    const actualOutcome = actualHome > actualAway ? 'home' : actualAway > actualHome ? 'away' : 'draw'
+    const predOutcome = predHome > predAway ? 'home' : predAway > predHome ? 'away' : 'draw'
+
+    if (actualOutcome === predOutcome) return 'correct'
+    return 'wrong'
+  }
+
   const groupMatches = matches.filter(m => m.group_letter === activeGroup)
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('nb-NO', {
-      weekday: 'long', day: 'numeric', month: 'long'
-    })
+    return date.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' })
   }
 
   const countPredictions = (group) => {
@@ -177,15 +188,31 @@ export default function Predictions({ session }) {
           const pred = predictions[match.id] || { home: "", away: "" }
           const isSaving = saving[match.id]
           const hasPred = pred.home !== "" && pred.away !== ""
+          const hasResult = match.home_score !== null
+          const resultStyle = hasResult ? getResultStyle(match, pred) : null
+
+          const cardStyle = {
+            ...styles.matchCard,
+            ...(resultStyle === 'exact' ? styles.matchCardExact : {}),
+            ...(resultStyle === 'correct' ? styles.matchCardCorrect : {}),
+            ...(resultStyle === 'wrong' ? styles.matchCardWrong : {}),
+            ...(!hasResult && hasPred ? styles.matchCardDone : {}),
+          }
 
           return (
-            <div key={match.id} style={{
-              ...styles.matchCard,
-              ...(hasPred ? styles.matchCardDone : {})
-            }}>
+            <div key={match.id} style={cardStyle}>
               <div style={styles.matchInfo}>
                 <span style={styles.matchDate}>{formatDate(match.match_date)}</span>
-                <span style={styles.matchStadium}>{match.stadium}</span>
+                <div style={styles.matchRight}>
+                  {hasResult && (
+                    <span style={styles.actualResult}>
+                      Fasit: {match.home_score} – {match.away_score}
+                    </span>
+                  )}
+                  {resultStyle === 'exact' && <span style={styles.badge}>🎯 Eksakt!</span>}
+                  {resultStyle === 'correct' && <span style={styles.badgeCorrect}>✅ Riktig utfall</span>}
+                  {resultStyle === 'wrong' && <span style={styles.badgeWrong}>❌ Feil</span>}
+                </div>
               </div>
 
               <div style={styles.matchRow}>
@@ -199,9 +226,7 @@ export default function Predictions({ session }) {
                     <>
                       <input
                         style={styles.scoreInput}
-                        type="number"
-                        min="0"
-                        max="20"
+                        type="number" min="0" max="20"
                         value={pred.home}
                         onChange={e => handleScoreChange(match.id, "home", e.target.value)}
                         placeholder="-"
@@ -209,9 +234,7 @@ export default function Predictions({ session }) {
                       <span style={styles.vs}>–</span>
                       <input
                         style={styles.scoreInput}
-                        type="number"
-                        min="0"
-                        max="20"
+                        type="number" min="0" max="20"
                         value={pred.away}
                         onChange={e => handleScoreChange(match.id, "away", e.target.value)}
                         placeholder="-"
@@ -266,8 +289,8 @@ const styles = {
     width: '44px', height: '44px', borderRadius: '8px',
     border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
     color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px',
-    fontWeight: 'bold', position: 'relative', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
+    fontWeight: 'bold', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', flexDirection: 'column',
   },
   activeGroupTab: { background: '#e94560', border: '1px solid #e94560', color: 'white' },
   doneGroupTab: { background: 'rgba(39, 174, 96, 0.3)', border: '1px solid #27ae60', color: 'white' },
@@ -284,9 +307,25 @@ const styles = {
     padding: '16px', border: '1px solid rgba(255,255,255,0.1)',
   },
   matchCardDone: { border: '1px solid rgba(39, 174, 96, 0.3)' },
-  matchInfo: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px' },
+  matchCardExact: {
+    border: '1px solid rgba(255,215,0,0.5)',
+    background: 'rgba(255,215,0,0.05)',
+  },
+  matchCardCorrect: {
+    border: '1px solid rgba(39,174,96,0.5)',
+    background: 'rgba(39,174,96,0.05)',
+  },
+  matchCardWrong: {
+    border: '1px solid rgba(233,69,96,0.3)',
+    background: 'rgba(233,69,96,0.03)',
+  },
+  matchInfo: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' },
+  matchRight: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
   matchDate: { color: 'rgba(255,255,255,0.5)', fontSize: '12px' },
-  matchStadium: { color: 'rgba(255,255,255,0.3)', fontSize: '11px', textAlign: 'right' },
+  actualResult: { color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontStyle: 'italic' },
+  badge: { background: 'rgba(255,215,0,0.2)', border: '1px solid rgba(255,215,0,0.4)', color: 'gold', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
+  badgeCorrect: { background: 'rgba(39,174,96,0.2)', border: '1px solid rgba(39,174,96,0.4)', color: '#27ae60', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
+  badgeWrong: { background: 'rgba(233,69,96,0.2)', border: '1px solid rgba(233,69,96,0.4)', color: '#e94560', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
   matchRow: { display: 'flex', alignItems: 'center', gap: '12px', margin: '12px 0' },
   team: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px' },
   flag: { fontSize: '24px' },
