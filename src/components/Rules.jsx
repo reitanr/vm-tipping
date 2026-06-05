@@ -1,4 +1,24 @@
+import { useState, useEffect } from "react"
+import { supabase } from "../supabaseClient"
+
 export default function Rules() {
+  const [participantCount, setParticipantCount] = useState(0)
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      const { count } = await supabase
+        .from("profiles")
+        .select("*", { count: 'exact', head: true })
+      setParticipantCount(count || 0)
+    }
+    fetchCount()
+  }, [])
+
+  const pot = participantCount * 200
+  const first = Math.round(pot * 0.7)
+  const second = Math.round(pot * 0.2)
+  const third = Math.round(pot * 0.1)
+
   return (
     <div>
       <h2 style={styles.title}>📋 Regler</h2>
@@ -11,17 +31,20 @@ export default function Rules() {
         </p>
         <div style={styles.prizeBox}>
           <h4 style={styles.prizeTitle}>💰 Premiepott</h4>
-          <div style={styles.prizeRow}>
-            <span>🥇 1. plass</span>
-            <span style={styles.prizeAmount}>70% av potten</span>
+          <div style={styles.prizeInfo}>
+            {participantCount} deltakere × 200 kr = <strong style={styles.highlight}>{pot} kr</strong>
           </div>
           <div style={styles.prizeRow}>
-            <span>🥈 2. plass</span>
-            <span style={styles.prizeAmount}>20% av potten</span>
+            <span>🥇 1. plass (70%)</span>
+            <span style={styles.prizeAmount}>{first} kr</span>
           </div>
           <div style={styles.prizeRow}>
-            <span>🥉 3. plass</span>
-            <span style={styles.prizeAmount}>10% av potten</span>
+            <span>🥈 2. plass (20%)</span>
+            <span style={styles.prizeAmount}>{second} kr</span>
+          </div>
+          <div style={styles.prizeRow}>
+            <span>🥉 3. plass (10%)</span>
+            <span style={styles.prizeAmount}>{third} kr</span>
           </div>
         </div>
       </div>
@@ -32,7 +55,7 @@ export default function Rules() {
         <div style={styles.roundBox}>
           <div style={styles.round}>
             <div style={styles.roundTitle}>Runde 1 – Gruppespill</div>
-            <div style={styles.roundDesc}>Tipp eksakt resultat på alle 72 gruppespillkamper. Frist: før VM starter 11. juni kl. 21:00.</div>
+            <div style={styles.roundDesc}>Tipp eksakt resultat på alle 72 gruppespillkamper. Frist: 10. juni kl. 20:00.</div>
           </div>
           <div style={styles.round}>
             <div style={styles.roundTitle}>Runde 2 – Sluttspill</div>
@@ -142,15 +165,15 @@ export default function Rules() {
       </div>
 
       <div style={styles.card}>
-        <h3 style={styles.sectionTitle}>Frister</h3>
+        <h3 style={styles.sectionTitle}>⏰ Frister</h3>
         <div style={styles.pointsTable}>
           <div style={styles.pointsRow}>
             <span>Gruppespill-tipping</span>
-            <span style={styles.points}>Før 11. juni kl. 21:00</span>
+            <span style={styles.points}>10. juni kl. 20:00</span>
           </div>
           <div style={styles.pointsRow}>
             <span>Bonusspørsmål</span>
-            <span style={styles.points}>Før 11. juni kl. 21:00</span>
+            <span style={styles.points}>10. juni kl. 20:00</span>
           </div>
           <div style={styles.pointsRow}>
             <span>Sluttspill-tipping</span>
@@ -158,7 +181,6 @@ export default function Rules() {
           </div>
         </div>
       </div>
-
     </div>
   )
 }
@@ -178,7 +200,11 @@ const styles = {
     background: 'rgba(255,215,0,0.05)', borderRadius: '8px',
     padding: '16px', border: '1px solid rgba(255,215,0,0.2)', marginTop: '12px',
   },
-  prizeTitle: { color: 'gold', fontSize: '15px', marginBottom: '12px', marginTop: 0 },
+  prizeTitle: { color: 'gold', fontSize: '15px', marginBottom: '8px', marginTop: 0 },
+  prizeInfo: {
+    color: 'rgba(255,255,255,0.7)', fontSize: '13px',
+    marginBottom: '12px', textAlign: 'center',
+  },
   prizeRow: {
     display: 'flex', justifyContent: 'space-between',
     padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)',
