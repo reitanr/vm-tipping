@@ -15,7 +15,6 @@ export default function Chat({ session }) {
   useEffect(() => {
     fetchData()
 
-    // Sanntidsoppdatering
     const channel = supabase
       .channel('chat')
       .on('postgres_changes', {
@@ -102,7 +101,7 @@ export default function Chat({ session }) {
   if (loading) return <div style={styles.loading}>Laster chat...</div>
 
   return (
-    <div style={styles.container}>
+    <div>
       <h2 style={styles.title}>💬 Chat</h2>
       <p style={styles.subtitle}>Snakk med de andre deltakerne!</p>
 
@@ -127,12 +126,7 @@ export default function Chat({ session }) {
                 <div style={{ ...styles.bubble, ...(mine ? styles.myBubble : styles.theirBubble) }}>
                   <span style={styles.messageText}>{msg.message}</span>
                   {(mine || isAdmin) && (
-                    <button
-                      style={styles.deleteBtn}
-                      onClick={() => deleteMessage(msg.id)}
-                    >
-                      ×
-                    </button>
+                    <button style={styles.deleteBtn} onClick={() => deleteMessage(msg.id)}>×</button>
                   )}
                 </div>
                 <div style={{ ...styles.time, textAlign: mine ? 'right' : 'left' }}>
@@ -161,10 +155,7 @@ export default function Chat({ session }) {
           </div>
         )}
         <div style={styles.inputRow}>
-          <button
-            style={styles.emojiToggle}
-            onClick={() => setShowEmojis(!showEmojis)}
-          >
+          <button style={styles.emojiToggle} onClick={() => setShowEmojis(!showEmojis)}>
             😊
           </button>
           <input
@@ -190,56 +181,47 @@ export default function Chat({ session }) {
 }
 
 const styles = {
-  container: { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)' },
   title: { color: 'white', fontSize: '22px', marginBottom: '4px' },
   subtitle: { color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginBottom: '16px' },
   loading: { color: 'white', textAlign: 'center', padding: '40px' },
   empty: { color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '40px', fontSize: '15px' },
   messageList: {
-    flex: 1, overflowY: 'auto', display: 'flex',
-    flexDirection: 'column', gap: '12px', paddingBottom: '16px',
+    display: 'flex', flexDirection: 'column', gap: '12px',
+    minHeight: '200px', maxHeight: '500px', overflowY: 'auto',
+    marginBottom: '16px', padding: '8px',
+    background: 'rgba(255,255,255,0.02)', borderRadius: '12px',
+    border: '1px solid rgba(255,255,255,0.05)',
   },
   messageRow: { display: 'flex', alignItems: 'flex-end', gap: '8px' },
   avatar: {
     width: '32px', height: '32px', borderRadius: '50%',
     background: 'rgba(255,255,255,0.1)', display: 'flex',
     alignItems: 'center', justifyContent: 'center',
-    color: 'white', fontSize: '14px', fontWeight: 'bold',
-    flexShrink: 0,
+    color: 'white', fontSize: '14px', fontWeight: 'bold', flexShrink: 0,
   },
   senderName: { color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginBottom: '4px', paddingLeft: '4px' },
   bubble: {
     padding: '10px 14px', borderRadius: '18px',
-    position: 'relative', display: 'flex', alignItems: 'center', gap: '8px',
+    display: 'flex', alignItems: 'center', gap: '8px',
   },
   myBubble: { background: '#e94560', borderBottomRightRadius: '4px' },
   theirBubble: { background: 'rgba(255,255,255,0.1)', borderBottomLeftRadius: '4px' },
   messageText: { color: 'white', fontSize: '15px', lineHeight: '1.4', wordBreak: 'break-word' },
   deleteBtn: {
     background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
-    cursor: 'pointer', fontSize: '16px', padding: '0', lineHeight: 1,
-    flexShrink: 0,
+    cursor: 'pointer', fontSize: '16px', padding: '0', lineHeight: 1, flexShrink: 0,
   },
   time: { color: 'rgba(255,255,255,0.3)', fontSize: '10px', marginTop: '4px', paddingLeft: '4px' },
-  inputArea: {
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-    paddingTop: '12px', marginTop: 'auto',
-  },
+  inputArea: { marginTop: '8px' },
   emojiPicker: {
     display: 'flex', flexWrap: 'wrap', gap: '8px',
     background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
     padding: '12px', marginBottom: '8px',
     border: '1px solid rgba(255,255,255,0.1)',
   },
-  emojiBtn: {
-    background: 'transparent', border: 'none',
-    fontSize: '22px', cursor: 'pointer', padding: '4px',
-  },
+  emojiBtn: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
   inputRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  emojiToggle: {
-    background: 'transparent', border: 'none',
-    fontSize: '22px', cursor: 'pointer', padding: '4px',
-  },
+  emojiToggle: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
   input: {
     flex: 1, padding: '12px 16px', borderRadius: '24px',
     border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
