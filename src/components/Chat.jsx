@@ -105,6 +105,40 @@ export default function Chat({ session }) {
       <h2 style={styles.title}>💬 Chat</h2>
       <p style={styles.subtitle}>Snakk med de andre deltakerne!</p>
 
+      {/* Input øverst */}
+      <div style={styles.inputArea}>
+        {showEmojis && (
+          <div style={styles.emojiPicker}>
+            {EMOJIS.map(emoji => (
+              <button key={emoji} style={styles.emojiBtn} onClick={() => addEmoji(emoji)}>
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={styles.inputRow}>
+          <button style={styles.emojiToggle} onClick={() => setShowEmojis(!showEmojis)}>
+            😊
+          </button>
+          <input
+            style={styles.input}
+            type="text"
+            placeholder="Skriv en melding..."
+            value={newMessage}
+            onChange={e => setNewMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          <button
+            style={{ ...styles.sendBtn, opacity: sending || !newMessage.trim() ? 0.5 : 1 }}
+            onClick={sendMessage}
+            disabled={sending || !newMessage.trim()}
+          >
+            ➤
+          </button>
+        </div>
+      </div>
+
+      {/* Meldinger under */}
       <div style={styles.messageList}>
         {messages.length === 0 && (
           <div style={styles.empty}>Ingen meldinger ennå – vær den første! 👋</div>
@@ -143,39 +177,6 @@ export default function Chat({ session }) {
         })}
         <div ref={messagesEndRef} />
       </div>
-
-      <div style={styles.inputArea}>
-        {showEmojis && (
-          <div style={styles.emojiPicker}>
-            {EMOJIS.map(emoji => (
-              <button key={emoji} style={styles.emojiBtn} onClick={() => addEmoji(emoji)}>
-                {emoji}
-              </button>
-            ))}
-          </div>
-        )}
-        <div style={styles.inputRow}>
-          <button style={styles.emojiToggle} onClick={() => setShowEmojis(!showEmojis)}>
-            😊
-          </button>
-          <input
-            style={styles.input}
-            type="text"
-            placeholder="Skriv en melding..."
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
-          />
-          <button
-            style={{ ...styles.sendBtn, opacity: sending || !newMessage.trim() ? 0.5 : 1 }}
-            onClick={sendMessage}
-            disabled={sending || !newMessage.trim()}
-          >
-            ➤
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -185,12 +186,29 @@ const styles = {
   subtitle: { color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginBottom: '16px' },
   loading: { color: 'white', textAlign: 'center', padding: '40px' },
   empty: { color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '40px', fontSize: '15px' },
+  inputArea: { marginBottom: '16px' },
+  emojiPicker: {
+    display: 'flex', flexWrap: 'wrap', gap: '8px',
+    background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
+    padding: '12px', marginBottom: '8px',
+    border: '1px solid rgba(255,255,255,0.1)',
+  },
+  emojiBtn: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
+  inputRow: { display: 'flex', gap: '8px', alignItems: 'center' },
+  emojiToggle: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
+  input: {
+    flex: 1, padding: '12px 16px', borderRadius: '24px',
+    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
+    color: 'white', fontSize: '15px', outline: 'none',
+  },
+  sendBtn: {
+    width: '44px', height: '44px', borderRadius: '50%', border: 'none',
+    background: '#e94560', color: 'white', fontSize: '18px',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
   messageList: {
     display: 'flex', flexDirection: 'column', gap: '12px',
-    minHeight: '200px', maxHeight: '500px', overflowY: 'auto',
-    marginBottom: '16px', padding: '8px',
-    background: 'rgba(255,255,255,0.02)', borderRadius: '12px',
-    border: '1px solid rgba(255,255,255,0.05)',
+    padding: '8px',
   },
   messageRow: { display: 'flex', alignItems: 'flex-end', gap: '8px' },
   avatar: {
@@ -212,24 +230,4 @@ const styles = {
     cursor: 'pointer', fontSize: '16px', padding: '0', lineHeight: 1, flexShrink: 0,
   },
   time: { color: 'rgba(255,255,255,0.3)', fontSize: '10px', marginTop: '4px', paddingLeft: '4px' },
-  inputArea: { marginTop: '8px' },
-  emojiPicker: {
-    display: 'flex', flexWrap: 'wrap', gap: '8px',
-    background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
-    padding: '12px', marginBottom: '8px',
-    border: '1px solid rgba(255,255,255,0.1)',
-  },
-  emojiBtn: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
-  inputRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  emojiToggle: { background: 'transparent', border: 'none', fontSize: '22px', cursor: 'pointer', padding: '4px' },
-  input: {
-    flex: 1, padding: '12px 16px', borderRadius: '24px',
-    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)',
-    color: 'white', fontSize: '15px', outline: 'none',
-  },
-  sendBtn: {
-    width: '44px', height: '44px', borderRadius: '50%', border: 'none',
-    background: '#e94560', color: 'white', fontSize: '18px',
-    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
 }
