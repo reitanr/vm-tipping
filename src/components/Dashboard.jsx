@@ -8,6 +8,7 @@ import Rules from "./Rules"
 import AllPredictions from "./AllPredictions"
 import Playoff from "./Playoff"
 import Statistics from "./Statistics"
+import Chat from "./Chat"
 
 function Countdown() {
   const [timeLeft, setTimeLeft] = useState({})
@@ -136,6 +137,7 @@ export default function Dashboard({ session }) {
     { id: "bonus", label: "🎯 Bonus" },
     { id: "leaderboard", label: "🥇 Ledertavle" },
     { id: "statistics", label: "📊 Statistikk" },
+    { id: "chat", label: "💬 Chat" },
     ...(showAllPredictions ? [{ id: "allpredictions", label: "👀 Alles tips" }] : []),
     { id: "rules", label: "📋 Regler" },
     ...(isAdmin ? [{ id: "admin", label: "⚙️ Admin" }] : []),
@@ -185,6 +187,9 @@ export default function Dashboard({ session }) {
         </div>
         <div style={{ display: activeTab === "statistics" ? "block" : "none" }}>
           <Statistics />
+        </div>
+        <div style={{ display: activeTab === "chat" ? "block" : "none" }}>
+          <Chat session={session} />
         </div>
         {showAllPredictions && (
           <div style={{ display: activeTab === "allpredictions" ? "block" : "none" }}>
