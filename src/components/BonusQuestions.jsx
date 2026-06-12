@@ -47,15 +47,15 @@ export default function BonusQuestions({ session }) {
 
     const answersMap = {}
     answersData?.forEach(a => {
-      answersMap[a.question_id] = a.answer
+      answersMap[a.question_id] = { answer: a.answer, points: a.points_awarded }
     })
     setAnswers(answersMap)
     setLoading(false)
   }
 
   const saveAnswer = async (questionId) => {
-    const answer = answers[questionId]
-    if (!answer || answer.trim() === "") {
+    const current = answers[questionId]?.answer
+    if (!current || current.trim() === "") {
       setMessage("❌ Du må fylle inn et svar!")
       setTimeout(() => setMessage(""), 3000)
       return
@@ -68,7 +68,7 @@ export default function BonusQuestions({ session }) {
       .upsert({
         user_id: session.user.id,
         question_id: questionId,
-        answer: answer.trim(),
+        answer: current.trim(),
       }, { onConflict: "user_id,question_id" })
 
     if (error) setMessage("❌ Noe gikk galt, prøv igjen")
@@ -77,16 +77,40 @@ export default function BonusQuestions({ session }) {
     setSaving(prev => ({ ...prev, [questionId]: false }))
   }
 
+  const setAnswerValue = (questionId, value) => {
+    setAnswers(prev => ({ ...prev, [questionId]: { ...prev[questionId], answer: value } }))
+  }
+
   const handleFocus = (e) => {
     setTimeout(() => {
       e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 300)
   }
 
-  const renderInput = (question) => {
-    const value = answers[question.id] || ""
+  const getResultStatus = (question) => {
+    if (!question.correct_answer) return null
+    const userAnswer = answers[question.id]?.answer
+    const points = answers[question.id]?.points
 
-    if (!bettingOpen) {
+    if (!userAnswer) return 'unanswered'
+
+    if (question.question_type === "number") {
+      const userNum = parseInt(userAnswer)
+      const correctNum = parseInt(question.correct_answer)
+      if (userNum === correctNum) return 'exact'
+      if (Math.abs(userNum - correctNum) === 1) return 'close'
+      return 'wrong'
+    }
+
+    if (userAnswer.toLowerCase() === question.correct_answer.toLowerCase()) return 'exact'
+    return 'wrong'
+  }
+
+  const renderInput = (question) => {
+    const value = answers[question.id]?.answer || ""
+    const isLocked = !bettingOpen
+
+    if (isLocked) {
       return (
         <div style={styles.lockedAnswer}>
           {value ? `💬 ${value}` : "Ikke svart"}
@@ -104,7 +128,7 @@ export default function BonusQuestions({ session }) {
                 ...styles.yesNoButton,
                 ...(value === opt ? styles.yesNoActive : {})
               }}
-              onClick={() => setAnswers(prev => ({ ...prev, [question.id]: opt }))}
+              onClick={() => setAnswerValue(question.id, opt)}
             >
               {opt === "Ja" ? "✅ Ja" : "❌ Nei"}
             </button>
@@ -119,7 +143,7 @@ export default function BonusQuestions({ session }) {
           style={styles.select}
           value={value}
           onFocus={handleFocus}
-          onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+          onChange={e => setAnswerValue(question.id, e.target.value)}
         >
           <option value="">-- Velg kamp --</option>
           {question.options.map(opt => (
@@ -135,7 +159,7 @@ export default function BonusQuestions({ session }) {
           style={styles.select}
           value={value}
           onFocus={handleFocus}
-          onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+          onChange={e => setAnswerValue(question.id, e.target.value)}
         >
           <option value="">-- Velg spiller --</option>
           {players
@@ -161,7 +185,7 @@ export default function BonusQuestions({ session }) {
           style={styles.select}
           value={value}
           onFocus={handleFocus}
-          onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+          onChange={e => setAnswerValue(question.id, e.target.value)}
         >
           <option value="">-- Velg lag --</option>
           {teams.map(t => (
@@ -180,7 +204,7 @@ export default function BonusQuestions({ session }) {
         placeholder={question.question_type === "number" ? "Skriv et tall..." : "Skriv ditt svar..."}
         value={value}
         onFocus={handleFocus}
-        onChange={e => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+        onChange={e => setAnswerValue(question.id, e.target.value)}
       />
     )
   }
@@ -201,27 +225,50 @@ export default function BonusQuestions({ session }) {
       {message && <div style={styles.message}>{message}</div>}
 
       <div style={styles.questions}>
-        {questions.map((q, index) => (
-          <div key={q.id} style={styles.questionCard}>
-            <div style={styles.questionHeader}>
-              <span style={styles.questionNumber}>#{index + 1}</span>
-              <span style={styles.points}>{q.points} poeng</span>
+        {questions.map((q, index) => {
+          const status = getResultStatus(q)
+          const cardStyle = {
+            ...styles.questionCard,
+            ...(status === 'exact' ? styles.questionExact : {}),
+            ...(status === 'close' ? styles.questionClose : {}),
+            ...(status === 'wrong' ? styles.questionWrong : {}),
+            ...(status === 'unanswered' ? styles.questionWrong : {}),
+          }
+
+          return (
+            <div key={q.id} style={cardStyle}>
+              <div style={styles.questionHeader}>
+                <span style={styles.questionNumber}>#{index + 1}</span>
+                <div style={styles.headerRight}>
+                  {status === 'exact' && <span style={styles.badgeCorrect}>✅ Riktig! +{answers[q.id]?.points || q.points}p</span>}
+                  {status === 'close' && <span style={styles.badgeClose}>🔶 Nære! +{answers[q.id]?.points || 0}p</span>}
+                  {status === 'wrong' && <span style={styles.badgeWrong}>❌ Feil</span>}
+                  {status === 'unanswered' && <span style={styles.badgeWrong}>❌ Ikke besvart</span>}
+                  <span style={styles.points}>{q.points} poeng</span>
+                </div>
+              </div>
+              <p style={styles.questionText}>{q.question}</p>
+
+              {q.correct_answer && (
+                <div style={styles.correctAnswerBox}>
+                  ✅ Riktig svar: <strong>{q.correct_answer}</strong>
+                </div>
+              )}
+
+              {renderInput(q)}
+
+              {bettingOpen && (
+                <button
+                  style={{ ...styles.saveButton, opacity: saving[q.id] ? 0.6 : 1 }}
+                  onClick={() => saveAnswer(q.id)}
+                  disabled={saving[q.id]}
+                >
+                  {saving[q.id] ? "Lagrer..." : answers[q.id]?.answer ? "✅ Oppdater svar" : "Lagre svar"}
+                </button>
+              )}
             </div>
-            <p style={styles.questionText}>{q.question}</p>
-
-            {renderInput(q)}
-
-            {bettingOpen && (
-              <button
-                style={{ ...styles.saveButton, opacity: saving[q.id] ? 0.6 : 1 }}
-                onClick={() => saveAnswer(q.id)}
-                disabled={saving[q.id]}
-              >
-                {saving[q.id] ? "Lagrer..." : answers[q.id] ? "✅ Oppdater svar" : "Lagre svar"}
-              </button>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -246,16 +293,45 @@ const styles = {
     background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
     padding: '20px', border: '1px solid rgba(255,255,255,0.1)',
   },
+  questionExact: {
+    border: '1px solid rgba(255,215,0,0.5)',
+    background: 'rgba(255,215,0,0.05)',
+  },
+  questionClose: {
+    border: '1px solid rgba(243,156,18,0.5)',
+    background: 'rgba(243,156,18,0.05)',
+  },
+  questionWrong: {
+    border: '1px solid rgba(233,69,96,0.3)',
+    background: 'rgba(233,69,96,0.03)',
+  },
   questionHeader: {
     display: 'flex', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: '10px',
+    alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px',
   },
+  headerRight: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
   questionNumber: { color: 'rgba(255,255,255,0.4)', fontSize: '13px' },
   points: {
     background: '#e94560', color: 'white', padding: '3px 10px',
     borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
   },
+  badgeCorrect: {
+    background: 'rgba(255,215,0,0.2)', border: '1px solid rgba(255,215,0,0.4)',
+    color: 'gold', padding: '3px 10px', borderRadius: '20px', fontSize: '12px',
+  },
+  badgeClose: {
+    background: 'rgba(243,156,18,0.2)', border: '1px solid rgba(243,156,18,0.4)',
+    color: '#f39c12', padding: '3px 10px', borderRadius: '20px', fontSize: '12px',
+  },
+  badgeWrong: {
+    background: 'rgba(233,69,96,0.2)', border: '1px solid rgba(233,69,96,0.4)',
+    color: '#e94560', padding: '3px 10px', borderRadius: '20px', fontSize: '12px',
+  },
   questionText: { color: 'white', fontSize: '16px', marginBottom: '14px', lineHeight: '1.4' },
+  correctAnswerBox: {
+    color: '#27ae60', fontSize: '13px', padding: '8px 12px',
+    background: 'rgba(39,174,96,0.1)', borderRadius: '6px', marginBottom: '12px',
+  },
   lockedAnswer: {
     padding: '12px', borderRadius: '8px',
     background: 'rgba(255,255,255,0.05)',

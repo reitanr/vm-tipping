@@ -12,7 +12,6 @@ const ROUNDS = [
 
 const FIFA_MATCH_NUMBERS = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88]
 
-// Bracket: hvilke r16-kamper møtes i r8
 const R8_BRACKET = [
   [1, 4], [0, 2], [3, 5], [6, 7],
   [10, 11], [8, 9], [13, 15], [12, 14],
@@ -20,9 +19,7 @@ const R8_BRACKET = [
 const QF_BRACKET = [[0,1],[2,3],[4,5],[6,7]]
 const SF_BRACKET = [[0,1],[2,3]]
 
-// Bonuspoeng per runde
 const BONUS_POINTS = { r8: 1, qf: 2, sf: 3, final: 4 }
-const VM_WINNER_BONUS = 5
 
 export default function Admin() {
   const [matches, setMatches] = useState([])
@@ -47,7 +44,6 @@ export default function Admin() {
   const [activeUser, setActiveUser] = useState(null)
   const [editAnswers, setEditAnswers] = useState({})
   const [newMatch, setNewMatch] = useState({ home_team_id: '', away_team_id: '', match_date: '', stadium: '' })
-  const [allPlayoffPredictions, setAllPlayoffPredictions] = useState([])
 
   useEffect(() => {
     fetchData()
@@ -115,9 +111,6 @@ export default function Admin() {
     })
     setBonusPredictions(bonusPredMap)
     setEditAnswers(editMap)
-
-    const { data: allPlayoffPreds } = await supabase.from("playoff_predictions").select("*")
-    setAllPlayoffPredictions(allPlayoffPreds || [])
 
     setLoading(false)
   }
@@ -200,20 +193,14 @@ export default function Admin() {
   }
 
   const updatePlayoffPoints = async (match, homeScore, awayScore, actualWinnerId) => {
-    // Finn match_id som brukes i playoff_predictions
-    // For r16: match_id er String(match.id)
-    // For andre: match_id er f.eks. "r8_0"
     const matchKey = String(match.id)
 
-    // Finn alle r16-kamper sortert på posisjon
     const r16Sorted = playoffMatches
       .filter(m => m.round === 'r16')
       .sort((a, b) => a.position - b.position)
 
-    // Finn posisjon i r16
     const r16Index = r16Sorted.findIndex(m => m.id === match.id)
 
-    // Hent alle playoff_predictions for denne kampen
     const { data: predictions } = await supabase
       .from("playoff_predictions")
       .select("*")
@@ -221,10 +208,6 @@ export default function Admin() {
 
     for (const pred of predictions || []) {
       let points = 0
-
-      // Sjekk om tipperen hadde riktig lag
-      const predHomeId = match.home_team_id
-      const predAwayId = match.away_team_id
 
       if (pred.home_score === homeScore && pred.away_score === awayScore) {
         points = 3
@@ -239,39 +222,33 @@ export default function Admin() {
         .eq("id", pred.id)
     }
 
-    // Bonuspoeng: finn hvem som tippet riktig vinner videre til neste runde
     if (actualWinnerId && match.round === 'r16' && r16Index >= 0) {
       await giveR16BonusPoints(r16Index, actualWinnerId, r16Sorted)
     }
   }
 
   const giveR16BonusPoints = async (r16Index, winnerId, r16Sorted) => {
-    // Finn hvilken r8-kamp denne r16-kampen fører til
     const r8Index = R8_BRACKET.findIndex(pair => pair.includes(r16Index))
     if (r8Index === -1) return
 
     const r8Key = `r8_${r8Index}`
 
-    // Hent alle tips for den r8-kampen
     const { data: r8Preds } = await supabase
       .from("playoff_predictions")
       .select("*")
       .eq("match_id", r8Key)
 
     for (const pred of r8Preds || []) {
-      // Finn hvilke lag tipperen trodde skulle møtes i r8
       const pair = R8_BRACKET[r8Index]
       const otherR16Index = pair[0] === r16Index ? pair[1] : pair[0]
       const otherMatch = r16Sorted[otherR16Index]
 
       if (!otherMatch) continue
 
-      // Sjekk om tipperen hadde winnerId som hjemme- eller bortelag i r8
-      // Det gjør vi ved å sjekke om pred.winner_id matcher winnerId
-      // eller om hjemmelaget/bortelaget i r8 er winnerId
+      const r16Match = r16Sorted[r16Index]
       const tipperHadWinner = pred.winner_id === winnerId ||
-        (pred.home_score > pred.away_score && match.home_team_id === winnerId) ||
-        (pred.away_score > pred.home_score && match.away_team_id === winnerId)
+        (pred.home_score > pred.away_score && r16Match.home_team_id === winnerId) ||
+        (pred.away_score > pred.home_score && r16Match.away_team_id === winnerId)
 
       if (tipperHadWinner) {
         const currentPoints = pred.points_awarded || 0
@@ -329,6 +306,25 @@ export default function Admin() {
       setMessage("✅ Svar lagret og poeng oppdatert!")
     }
     setTimeout(() => setMessage(""), 4000)
+  }
+
+  const clearBonusAnswer = async (questionId) => {
+    const { error } = await supabase.from("bonus_questions")
+      .update({ correct_answer: null }).eq("id", questionId)
+    if (error) { setMessage("❌ Noe gikk galt") }
+    else {
+      // Nullstill poeng for dette spørsmålet
+      await supabase.from("bonus_predictions")
+        .update({ points_awarded: 0 }).eq("question_id", questionId)
+      setBonusAnswers(prev => {
+        const updated = { ...prev }
+        delete updated[questionId]
+        return updated
+      })
+      setMessage("✅ Fasit fjernet og poeng nullstilt!")
+      fetchData()
+    }
+    setTimeout(() => setMessage(""), 3000)
   }
 
   const updateBonusPoints = async (questionId, correctAnswer) => {
@@ -598,9 +594,16 @@ export default function Admin() {
               <input style={styles.input} type="text" placeholder="Riktig svar..."
                 value={bonusAnswers[q.id] || ""}
                 onChange={e => setBonusAnswers(prev => ({ ...prev, [q.id]: e.target.value }))} />
-              <button style={styles.saveButton} onClick={() => saveBonusAnswer(q.id)}>
-                {q.correct_answer ? "Oppdater svar" : "Lagre svar"}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button style={{ ...styles.saveButton, flex: 1 }} onClick={() => saveBonusAnswer(q.id)}>
+                  {q.correct_answer ? "Oppdater svar" : "Lagre svar"}
+                </button>
+                {q.correct_answer && (
+                  <button style={styles.deleteButton} onClick={() => clearBonusAnswer(q.id)}>
+                    🗑️ Fjern fasit
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -687,7 +690,7 @@ const styles = {
   winnerButton: { flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '13px' },
   winnerActive: { background: 'rgba(233,69,96,0.3)', border: '1px solid #e94560', color: 'white' },
   saveButton: { width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #e94560, #c62a47)', color: 'white', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' },
-  deleteButton: { padding: '10px 14px', borderRadius: '8px', border: 'none', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '14px', cursor: 'pointer', marginTop: '8px' },
+  deleteButton: { padding: '10px 14px', borderRadius: '8px', border: 'none', background: 'rgba(233,69,96,0.2)', color: 'white', fontSize: '13px', cursor: 'pointer', marginTop: '8px', whiteSpace: 'nowrap' },
   select: { flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: '#1a1a2e', color: 'white', fontSize: '13px', outline: 'none' },
   input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '15px', marginBottom: '8px', outline: 'none', boxSizing: 'border-box' },
   questions: { display: 'flex', flexDirection: 'column', gap: '12px' },
