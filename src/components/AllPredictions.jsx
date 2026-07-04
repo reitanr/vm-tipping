@@ -19,7 +19,8 @@ export default function AllPredictions() {
   const [predictions, setPredictions] = useState({})
   const [bonusQuestions, setBonusQuestions] = useState([])
   const [bonusPredictions, setBonusPredictions] = useState({})
-  const [playoffMatches, setPlayoffMatches] = useState([])
+  const [r16Matches, setR16Matches] = useState([])
+  const [r8Matches, setR8Matches] = useState([])
   const [playoffPredictions, setPlayoffPredictions] = useState({})
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("matches")
@@ -65,9 +66,13 @@ export default function AllPredictions() {
     })
     setBonusPredictions(bonusMap)
 
-    const { data: playoffMatchesData } = await supabase
+    const { data: r16Data } = await supabase
       .from("playoff_matches").select("*").eq("round", "r16").order("position")
-    setPlayoffMatches(playoffMatchesData || [])
+    setR16Matches(r16Data || [])
+
+    const { data: r8Data } = await supabase
+      .from("playoff_matches").select("*").eq("round", "r8").order("position")
+    setR8Matches(r8Data || [])
 
     const { data: playoffPredsData } = await supabase.from("playoff_predictions").select("*")
     const playoffMap = {}
@@ -109,17 +114,8 @@ export default function AllPredictions() {
     return 'wrong'
   }
 
-  const getPlayoffResultStyle = (match, pred) => {
-    if (!match || match.home_score === null || !pred) return null
-    if (pred.home_score === match.home_score && pred.away_score === match.away_score) return 'exact'
-    const actualOutcome = match.home_score > match.away_score ? 'home' : match.away_score > match.home_score ? 'away' : 'draw'
-    const predOutcome = pred.home_score > pred.away_score ? 'home' : pred.away_score > pred.home_score ? 'away' : 'draw'
-    if (actualOutcome === predOutcome) return 'correct'
-    return 'wrong'
-  }
-
   const getUserR16Winner = (userId, matchIndex) => {
-    const match = playoffMatches[matchIndex]
+    const match = r16Matches[matchIndex]
     if (!match) return null
     const pred = playoffPredictions[userId]?.[String(match.id)]
     if (!pred) return null
@@ -173,37 +169,92 @@ export default function AllPredictions() {
     return winner === homeId ? awayId : homeId
   }
 
+  const checkTeamsMatch = (actualHomeId, actualAwayId, tippedHomeId, tippedAwayId) => {
+    if (!actualHomeId || !actualAwayId || !tippedHomeId || !tippedAwayId) return 'unknown'
+    if ((actualHomeId === tippedHomeId && actualAwayId === tippedAwayId) ||
+        (actualHomeId === tippedAwayId && actualAwayId === tippedHomeId)) return 'correct'
+    return 'wrong'
+  }
+
+  const getResultBadge = (actualMatch, pred) => {
+    if (!actualMatch || actualMatch.home_score === null || !pred) return null
+    if (pred.home_score === actualMatch.home_score && pred.away_score === actualMatch.away_score)
+      return <span style={styles.badge}>🎯 Eksakt!</span>
+    const actualOutcome = actualMatch.home_score > actualMatch.away_score ? 'home' : actualMatch.away_score > actualMatch.home_score ? 'away' : 'draw'
+    const predOutcome = pred.home_score > pred.away_score ? 'home' : pred.away_score > pred.home_score ? 'away' : 'draw'
+    if (actualOutcome === predOutcome) return <span style={styles.badgeCorrect}>✅ Riktig</span>
+    return <span style={styles.badgeWrong}>❌ Feil</span>
+  }
+
   const groupMatches = matches.filter(m => m.group_letter === activeGroup)
 
-  const renderPlayoffMatchCard = (pred, homeId, awayId, label, resultStyle) => {
+  const renderR8Card = (index) => {
+    const pair = R8_BRACKET[index]
+    const tippedHomeId = getUserR16Winner(activeUser, pair[0])
+    const tippedAwayId = getUserR16Winner(activeUser, pair[1])
+    const pred = playoffPredictions[activeUser]?.[`r8_${index}`]
+    const actualMatch = r8Matches[index]
+    const teamsMatch = actualMatch
+      ? checkTeamsMatch(actualMatch.home_team_id, actualMatch.away_team_id, tippedHomeId, tippedAwayId)
+      : 'unknown'
+    const hasResult = actualMatch?.home_score !== null && actualMatch?.home_score !== undefined
+    const label = `Vinner kamp ${FIFA_MATCH_NUMBERS[pair[0]]} vs Vinner kamp ${FIFA_MATCH_NUMBERS[pair[1]]}`
+
+    if (teamsMatch === 'wrong') {
+      return (
+        <div key={index} style={styles.matchCardWrongTeams}>
+          <div style={styles.matchDate}>{label}</div>
+          <span style={styles.badgeWrong}>❌ Feil lag tippet videre</span>
+          <div style={styles.matchRow}>
+            <div style={styles.team}>
+              <span style={styles.flag}>{teams[tippedHomeId]?.flag_emoji}</span>
+              <span style={{ ...styles.teamName, opacity: 0.5 }}>{teams[tippedHomeId]?.name}</span>
+            </div>
+            <div style={styles.scoreDisplay}>
+              {pred ? <span style={styles.score}>{pred.home_score} – {pred.away_score}</span>
+                : <span style={styles.noTip}>–</span>}
+            </div>
+            <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
+              <span style={{ ...styles.teamName, opacity: 0.5 }}>{teams[tippedAwayId]?.name}</span>
+              <span style={styles.flag}>{teams[tippedAwayId]?.flag_emoji}</span>
+            </div>
+          </div>
+          {actualMatch && (
+            <div style={styles.actualMatchInfo}>
+              Faktisk kamp: {teams[actualMatch.home_team_id]?.flag_emoji} {teams[actualMatch.home_team_id]?.name} vs {teams[actualMatch.away_team_id]?.flag_emoji} {teams[actualMatch.away_team_id]?.name}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     const cardStyle = {
       ...styles.matchCard,
-      ...(resultStyle === 'exact' ? styles.matchCardExact : {}),
-      ...(resultStyle === 'correct' ? styles.matchCardCorrect : {}),
-      ...(resultStyle === 'wrong' ? styles.matchCardWrong : {}),
-      ...(!resultStyle && pred ? styles.matchCardDone : {}),
+      ...(pred ? styles.matchCardDone : {}),
     }
+
     return (
-      <div key={label} style={cardStyle}>
-        {label && <div style={styles.matchDate}>{label}</div>}
+      <div key={index} style={cardStyle}>
+        <div style={styles.matchInfo}>
+          <span style={styles.matchDate}>{label}</span>
+          <div style={styles.matchRight}>
+            {hasResult && <span style={styles.actualResult}>Fasit: {actualMatch.home_score} – {actualMatch.away_score}</span>}
+            {hasResult && pred && getResultBadge(actualMatch, pred)}
+          </div>
+        </div>
         <div style={styles.matchRow}>
           <div style={styles.team}>
-            <span style={styles.flag}>{homeId ? teams[homeId]?.flag_emoji : '❓'}</span>
-            <span style={styles.teamName}>{homeId ? teams[homeId]?.name : 'Ukjent'}</span>
+            <span style={styles.flag}>{teams[tippedHomeId]?.flag_emoji}</span>
+            <span style={styles.teamName}>{teams[tippedHomeId]?.name}</span>
           </div>
           <div style={styles.scoreDisplay}>
             {pred ? <span style={styles.score}>{pred.home_score} – {pred.away_score}</span>
               : <span style={styles.noTip}>–</span>}
           </div>
           <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
-            <span style={styles.teamName}>{awayId ? teams[awayId]?.name : 'Ukjent'}</span>
-            <span style={styles.flag}>{awayId ? teams[awayId]?.flag_emoji : '❓'}</span>
+            <span style={styles.teamName}>{teams[tippedAwayId]?.name}</span>
+            <span style={styles.flag}>{teams[tippedAwayId]?.flag_emoji}</span>
           </div>
-        </div>
-        <div style={styles.matchRight}>
-          {resultStyle === 'exact' && <span style={styles.badge}>🎯 Eksakt!</span>}
-          {resultStyle === 'correct' && <span style={styles.badgeCorrect}>✅ Riktig</span>}
-          {resultStyle === 'wrong' && <span style={styles.badgeWrong}>❌ Feil</span>}
         </div>
       </div>
     )
@@ -301,9 +352,9 @@ export default function AllPredictions() {
       {activeTab === "playoff" && (
         <div style={styles.matchList}>
           <h3 style={styles.sectionTitle}>16-delsfinale</h3>
-          {playoffMatches.map((match, index) => {
+          {r16Matches.map((match, index) => {
             const pred = playoffPredictions[activeUser]?.[String(match.id)]
-            const resultStyle = getPlayoffResultStyle(match, pred)
+            const resultStyle = getMatchResultStyle(match, pred)
             const winner = getUserR16Winner(activeUser, index)
             const cardStyle = {
               ...styles.matchCard,
@@ -349,23 +400,32 @@ export default function AllPredictions() {
           })}
 
           <h3 style={styles.sectionTitle}>8-delsfinale</h3>
-          {R8_BRACKET.map((pair, index) => {
-            const homeId = getUserR16Winner(activeUser, pair[0])
-            const awayId = getUserR16Winner(activeUser, pair[1])
-            const pred = playoffPredictions[activeUser]?.[`r8_${index}`]
-            return renderPlayoffMatchCard(
-              pred, homeId, awayId,
-              `Vinner kamp ${FIFA_MATCH_NUMBERS[pair[0]]} vs Vinner kamp ${FIFA_MATCH_NUMBERS[pair[1]]}`,
-              null
-            )
-          })}
+          {R8_BRACKET.map((pair, index) => renderR8Card(index))}
 
           <h3 style={styles.sectionTitle}>Kvartfinale</h3>
           {QF_BRACKET.map((pair, index) => {
             const homeId = getUserR8Winner(activeUser, pair[0])
             const awayId = getUserR8Winner(activeUser, pair[1])
             const pred = playoffPredictions[activeUser]?.[`qf_${index}`]
-            return renderPlayoffMatchCard(pred, homeId, awayId, `Kvartfinale ${index + 1}`, null)
+            return (
+              <div key={index} style={{ ...styles.matchCard, ...(pred ? styles.matchCardDone : {}) }}>
+                <div style={styles.matchDate}>Kvartfinale {index + 1}</div>
+                <div style={styles.matchRow}>
+                  <div style={styles.team}>
+                    <span style={styles.flag}>{homeId ? teams[homeId]?.flag_emoji : '❓'}</span>
+                    <span style={styles.teamName}>{homeId ? teams[homeId]?.name : 'Ukjent'}</span>
+                  </div>
+                  <div style={styles.scoreDisplay}>
+                    {pred ? <span style={styles.score}>{pred.home_score} – {pred.away_score}</span>
+                      : <span style={styles.noTip}>–</span>}
+                  </div>
+                  <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
+                    <span style={styles.teamName}>{awayId ? teams[awayId]?.name : 'Ukjent'}</span>
+                    <span style={styles.flag}>{awayId ? teams[awayId]?.flag_emoji : '❓'}</span>
+                  </div>
+                </div>
+              </div>
+            )
           })}
 
           <h3 style={styles.sectionTitle}>Semifinale</h3>
@@ -373,24 +433,66 @@ export default function AllPredictions() {
             const homeId = getUserQFWinner(activeUser, pair[0])
             const awayId = getUserQFWinner(activeUser, pair[1])
             const pred = playoffPredictions[activeUser]?.[`sf_${index}`]
-            return renderPlayoffMatchCard(pred, homeId, awayId, `Semifinale ${index + 1}`, null)
+            return (
+              <div key={index} style={{ ...styles.matchCard, ...(pred ? styles.matchCardDone : {}) }}>
+                <div style={styles.matchDate}>Semifinale {index + 1}</div>
+                <div style={styles.matchRow}>
+                  <div style={styles.team}>
+                    <span style={styles.flag}>{homeId ? teams[homeId]?.flag_emoji : '❓'}</span>
+                    <span style={styles.teamName}>{homeId ? teams[homeId]?.name : 'Ukjent'}</span>
+                  </div>
+                  <div style={styles.scoreDisplay}>
+                    {pred ? <span style={styles.score}>{pred.home_score} – {pred.away_score}</span>
+                      : <span style={styles.noTip}>–</span>}
+                  </div>
+                  <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
+                    <span style={styles.teamName}>{awayId ? teams[awayId]?.name : 'Ukjent'}</span>
+                    <span style={styles.flag}>{awayId ? teams[awayId]?.flag_emoji : '❓'}</span>
+                  </div>
+                </div>
+              </div>
+            )
           })}
 
           <h3 style={styles.sectionTitle}>🥉 Bronsefinale</h3>
-          {renderPlayoffMatchCard(
-            playoffPredictions[activeUser]?.['bronze_0'],
-            getUserSFLoser(activeUser, 0),
-            getUserSFLoser(activeUser, 1),
-            'Bronsefinale', null
-          )}
+          <div style={styles.matchCard}>
+            <div style={styles.matchDate}>Bronsefinale</div>
+            <div style={styles.matchRow}>
+              <div style={styles.team}>
+                <span style={styles.flag}>{getUserSFLoser(activeUser, 0) ? teams[getUserSFLoser(activeUser, 0)]?.flag_emoji : '❓'}</span>
+                <span style={styles.teamName}>{getUserSFLoser(activeUser, 0) ? teams[getUserSFLoser(activeUser, 0)]?.name : 'Ukjent'}</span>
+              </div>
+              <div style={styles.scoreDisplay}>
+                {playoffPredictions[activeUser]?.['bronze_0'] ?
+                  <span style={styles.score}>{playoffPredictions[activeUser]['bronze_0'].home_score} – {playoffPredictions[activeUser]['bronze_0'].away_score}</span>
+                  : <span style={styles.noTip}>–</span>}
+              </div>
+              <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
+                <span style={styles.teamName}>{getUserSFLoser(activeUser, 1) ? teams[getUserSFLoser(activeUser, 1)]?.name : 'Ukjent'}</span>
+                <span style={styles.flag}>{getUserSFLoser(activeUser, 1) ? teams[getUserSFLoser(activeUser, 1)]?.flag_emoji : '❓'}</span>
+              </div>
+            </div>
+          </div>
 
           <h3 style={styles.sectionTitle}>🏆 Finale</h3>
-          {renderPlayoffMatchCard(
-            playoffPredictions[activeUser]?.['final_0'],
-            getUserSFWinner(activeUser, 0),
-            getUserSFWinner(activeUser, 1),
-            'VM-finalen', null
-          )}
+          <div style={styles.matchCard}>
+            <div style={styles.matchDate}>VM-finalen</div>
+            <div style={styles.matchRow}>
+              <div style={styles.team}>
+                <span style={styles.flag}>{getUserSFWinner(activeUser, 0) ? teams[getUserSFWinner(activeUser, 0)]?.flag_emoji : '❓'}</span>
+                <span style={styles.teamName}>{getUserSFWinner(activeUser, 0) ? teams[getUserSFWinner(activeUser, 0)]?.name : 'Ukjent'}</span>
+              </div>
+              <div style={styles.scoreDisplay}>
+                {playoffPredictions[activeUser]?.['final_0'] ?
+                  <span style={styles.score}>{playoffPredictions[activeUser]['final_0'].home_score} – {playoffPredictions[activeUser]['final_0'].away_score}</span>
+                  : <span style={styles.noTip}>–</span>}
+              </div>
+              <div style={{ ...styles.team, justifyContent: 'flex-end' }}>
+                <span style={styles.teamName}>{getUserSFWinner(activeUser, 1) ? teams[getUserSFWinner(activeUser, 1)]?.name : 'Ukjent'}</span>
+                <span style={styles.flag}>{getUserSFWinner(activeUser, 1) ? teams[getUserSFWinner(activeUser, 1)]?.flag_emoji : '❓'}</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -462,15 +564,17 @@ const styles = {
   matchCardExact: { border: '1px solid rgba(255,215,0,0.5)', background: 'rgba(255,215,0,0.05)' },
   matchCardCorrect: { border: '1px solid rgba(39,174,96,0.5)', background: 'rgba(39,174,96,0.05)' },
   matchCardWrong: { border: '1px solid rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.03)' },
+  matchCardWrongTeams: { background: 'rgba(233,69,96,0.05)', borderRadius: '12px', padding: '12px 16px', border: '1px solid rgba(233,69,96,0.3)' },
   matchInfo: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' },
   matchRight: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-  matchDate: { color: 'rgba(255,255,255,0.4)', fontSize: '11px' },
+  matchDate: { color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginBottom: '4px' },
   actualResult: { color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontStyle: 'italic' },
+  actualMatchInfo: { color: 'rgba(255,255,255,0.5)', fontSize: '12px', padding: '6px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', marginTop: '4px' },
   badge: { background: 'rgba(255,215,0,0.2)', border: '1px solid rgba(255,215,0,0.4)', color: 'gold', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
   badgeCorrect: { background: 'rgba(39,174,96,0.2)', border: '1px solid rgba(39,174,96,0.4)', color: '#27ae60', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
   badgeClose: { background: 'rgba(243,156,18,0.2)', border: '1px solid rgba(243,156,18,0.4)', color: '#f39c12', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
   badgeWrong: { background: 'rgba(233,69,96,0.2)', border: '1px solid rgba(233,69,96,0.4)', color: '#e94560', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' },
-  matchRow: { display: 'flex', alignItems: 'center', gap: '12px' },
+  matchRow: { display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' },
   team: { flex: 1, display: 'flex', alignItems: 'center', gap: '6px' },
   flag: { fontSize: '20px' },
   teamName: { color: 'white', fontSize: '13px', fontWeight: '500' },
