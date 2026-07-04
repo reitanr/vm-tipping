@@ -20,8 +20,8 @@ const QF_BRACKET = [
 ]
 
 const SF_BRACKET = [
-  [0, 1],
-  [2, 3],
+  [0, 2],
+  [1, 3],
 ]
 
 const ROUNDS = [
@@ -33,7 +33,6 @@ const ROUNDS = [
   { id: 'final', label: '🏆 Finale' },
 ]
 
-// FIFA kampnummer mapping
 const FIFA_MATCH_NUMBERS = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88]
 
 export default function Playoff({ session }) {
@@ -52,9 +51,7 @@ export default function Playoff({ session }) {
 
   const fetchData = async () => {
     const { data: settingsData } = await supabase
-      .from("app_settings")
-      .select("*")
-      .single()
+      .from("app_settings").select("*").single()
     if (settingsData) setBettingOpen(settingsData.playoff_open)
 
     const { data: teamsData } = await supabase.from("teams").select("*")
@@ -63,21 +60,13 @@ export default function Playoff({ session }) {
     setTeams(teamsMap)
 
     const { data: matchesData } = await supabase
-      .from("playoff_matches")
-      .select("*")
-      .eq("round", "r16")
-      .order("position")
+      .from("playoff_matches").select("*").eq("round", "r16").order("position")
     setR16Matches(matchesData || [])
 
     const { data: predsData } = await supabase
-      .from("playoff_predictions")
-      .select("*")
-      .eq("user_id", session.user.id)
-
+      .from("playoff_predictions").select("*").eq("user_id", session.user.id)
     const predsMap = {}
-    predsData?.forEach(p => {
-      predsMap[p.match_id] = p
-    })
+    predsData?.forEach(p => { predsMap[p.match_id] = p })
     setPredictions(predsMap)
     setLoading(false)
   }
@@ -146,38 +135,23 @@ export default function Playoff({ session }) {
       setTimeout(() => setMessage(""), 3000)
       return
     }
-
     const key = String(match.id)
     setSaving(prev => ({ ...prev, [key]: true }))
-
     const isDrawn = parseInt(homeScore) === parseInt(awayScore)
     const autoWinner = !isDrawn
       ? parseInt(homeScore) > parseInt(awayScore) ? match.home_team_id : match.away_team_id
       : winnerId
-
-    const { error } = await supabase
-      .from("playoff_predictions")
+    const { error } = await supabase.from("playoff_predictions")
       .upsert({
-        user_id: session.user.id,
-        match_id: String(match.id),
-        home_score: parseInt(homeScore),
-        away_score: parseInt(awayScore),
+        user_id: session.user.id, match_id: String(match.id),
+        home_score: parseInt(homeScore), away_score: parseInt(awayScore),
         winner_id: autoWinner || null,
       }, { onConflict: "user_id,match_id" })
-
-    if (error) {
-      console.error("Error saving r16:", error)
-      setMessage("❌ " + error.message)
-    } else {
+    if (error) setMessage("❌ Noe gikk galt")
+    else {
       setMessage("✅ Tipp lagret!")
       setPredictions(prev => ({
-        ...prev,
-        [key]: {
-          match_id: key,
-          home_score: parseInt(homeScore),
-          away_score: parseInt(awayScore),
-          winner_id: autoWinner || null,
-        }
+        ...prev, [key]: { match_id: key, home_score: parseInt(homeScore), away_score: parseInt(awayScore), winner_id: autoWinner || null }
       }))
     }
     setTimeout(() => setMessage(""), 3000)
@@ -190,37 +164,22 @@ export default function Playoff({ session }) {
       setTimeout(() => setMessage(""), 3000)
       return
     }
-
     setSaving(prev => ({ ...prev, [virtualKey]: true }))
-
     const isDrawn = parseInt(homeScore) === parseInt(awayScore)
     const autoWinner = !isDrawn
       ? parseInt(homeScore) > parseInt(awayScore) ? homeId : awayId
       : winnerId
-
-    const { error } = await supabase
-      .from("playoff_predictions")
+    const { error } = await supabase.from("playoff_predictions")
       .upsert({
-        user_id: session.user.id,
-        match_id: virtualKey,
-        home_score: parseInt(homeScore),
-        away_score: parseInt(awayScore),
+        user_id: session.user.id, match_id: virtualKey,
+        home_score: parseInt(homeScore), away_score: parseInt(awayScore),
         winner_id: autoWinner || null,
       }, { onConflict: "user_id,match_id" })
-
-    if (error) {
-      console.error("Error saving virtual:", error)
-      setMessage("❌ " + error.message)
-    } else {
+    if (error) setMessage("❌ Noe gikk galt")
+    else {
       setMessage("✅ Tipp lagret!")
       setPredictions(prev => ({
-        ...prev,
-        [virtualKey]: {
-          match_id: virtualKey,
-          home_score: parseInt(homeScore),
-          away_score: parseInt(awayScore),
-          winner_id: autoWinner || null,
-        }
+        ...prev, [virtualKey]: { match_id: virtualKey, home_score: parseInt(homeScore), away_score: parseInt(awayScore), winner_id: autoWinner || null }
       }))
     }
     setTimeout(() => setMessage(""), 3000)
@@ -506,19 +465,13 @@ const styles = {
   },
   activeRoundTab: { background: '#e94560', border: '1px solid #e94560', color: 'white' },
   matches: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  matchLabel: {
-    color: 'rgba(255,255,255,0.5)', fontSize: '12px',
-    marginBottom: '4px', marginTop: '4px',
-  },
+  matchLabel: { color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px', marginTop: '4px' },
   matchCard: {
     background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
     padding: '16px', border: '1px solid rgba(255,255,255,0.1)',
   },
   matchCardDone: { border: '1px solid rgba(39, 174, 96, 0.3)' },
-  tbd: {
-    color: 'rgba(255,255,255,0.3)', textAlign: 'center',
-    padding: '20px', fontSize: '14px',
-  },
+  tbd: { color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '20px', fontSize: '14px' },
   matchRow: { display: 'flex', alignItems: 'center', gap: '12px', margin: '8px 0' },
   team: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px' },
   flag: { fontSize: '24px' },

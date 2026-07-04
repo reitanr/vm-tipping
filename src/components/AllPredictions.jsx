@@ -8,7 +8,7 @@ const R8_BRACKET = [
   [10, 11], [8, 9], [13, 15], [12, 14],
 ]
 const QF_BRACKET = [[0,1],[2,3],[4,5],[6,7]]
-const SF_BRACKET = [[0,1],[2,3]]
+const SF_BRACKET = [[0,2],[1,3]]
 
 const FIFA_MATCH_NUMBERS = [73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88]
 
@@ -184,7 +184,7 @@ export default function AllPredictions() {
       ...(!resultStyle && pred ? styles.matchCardDone : {}),
     }
     return (
-      <div style={cardStyle}>
+      <div key={label} style={cardStyle}>
         {label && <div style={styles.matchDate}>{label}</div>}
         <div style={styles.matchRow}>
           <div style={styles.team}>
