@@ -17,9 +17,20 @@ const R8_BRACKET = [
   [10, 11], [8, 9], [13, 15], [12, 14],
 ]
 const QF_BRACKET = [[0,1],[2,3],[4,5],[6,7]]
-const SF_BRACKET = [[0,1],[2,3]]
+const SF_BRACKET = [[0,2],[1,3]]
 
 const BONUS_POINTS = { r8: 1, qf: 2, sf: 3, final: 4 }
+
+// Konverter runde+posisjon til virtual match_id
+const getVirtualMatchId = (round, position) => {
+  if (round === 'r16') return null // r16 bruker faktisk ID
+  if (round === 'r8') return `r8_${position - 1}`
+  if (round === 'qf') return `qf_${position - 1}`
+  if (round === 'sf') return `sf_${position - 1}`
+  if (round === 'bronze') return 'bronze_0'
+  if (round === 'final') return 'final_0'
+  return null
+}
 
 export default function Admin() {
   const [matches, setMatches] = useState([])
@@ -193,18 +204,21 @@ export default function Admin() {
   }
 
   const updatePlayoffPoints = async (match, homeScore, awayScore, actualWinnerId) => {
-    const matchKey = String(match.id)
+    // Finn riktig match_id som brukes i playoff_predictions
+    let predMatchId
+    if (match.round === 'r16') {
+      predMatchId = String(match.id)
+    } else {
+      predMatchId = getVirtualMatchId(match.round, match.position)
+    }
 
-    const r16Sorted = playoffMatches
-      .filter(m => m.round === 'r16')
-      .sort((a, b) => a.position - b.position)
+    if (!predMatchId) return
 
-    const r16Index = r16Sorted.findIndex(m => m.id === match.id)
-
+    // Hent alle tips for denne kampen
     const { data: predictions } = await supabase
       .from("playoff_predictions")
       .select("*")
-      .eq("match_id", matchKey)
+      .eq("match_id", predMatchId)
 
     for (const pred of predictions || []) {
       let points = 0
@@ -222,8 +236,15 @@ export default function Admin() {
         .eq("id", pred.id)
     }
 
-    if (actualWinnerId && match.round === 'r16' && r16Index >= 0) {
-      await giveR16BonusPoints(r16Index, actualWinnerId, r16Sorted)
+    // Bonuspoeng for r16 → r8
+    if (match.round === 'r16' && actualWinnerId) {
+      const r16Sorted = playoffMatches
+        .filter(m => m.round === 'r16')
+        .sort((a, b) => a.position - b.position)
+      const r16Index = r16Sorted.findIndex(m => m.id === match.id)
+      if (r16Index >= 0) {
+        await giveR16BonusPoints(r16Index, actualWinnerId, r16Sorted)
+      }
     }
   }
 
@@ -232,7 +253,6 @@ export default function Admin() {
     if (r8Index === -1) return
 
     const r8Key = `r8_${r8Index}`
-
     const { data: r8Preds } = await supabase
       .from("playoff_predictions")
       .select("*")
@@ -242,13 +262,13 @@ export default function Admin() {
       const pair = R8_BRACKET[r8Index]
       const otherR16Index = pair[0] === r16Index ? pair[1] : pair[0]
       const otherMatch = r16Sorted[otherR16Index]
-
       if (!otherMatch) continue
 
       const r16Match = r16Sorted[r16Index]
-      const tipperHadWinner = pred.winner_id === winnerId ||
+      const tipperHadWinner =
         (pred.home_score > pred.away_score && r16Match.home_team_id === winnerId) ||
-        (pred.away_score > pred.home_score && r16Match.away_team_id === winnerId)
+        (pred.away_score > pred.home_score && r16Match.away_team_id === winnerId) ||
+        (pred.home_score === pred.away_score && pred.winner_id === winnerId)
 
       if (tipperHadWinner) {
         const currentPoints = pred.points_awarded || 0
@@ -284,7 +304,13 @@ export default function Admin() {
   }
 
   const deletePlayoffMatch = async (matchId) => {
-    await supabase.from("playoff_predictions").delete().eq("match_id", String(matchId))
+    const match = playoffMatches.find(m => m.id === matchId)
+    const virtualId = getVirtualMatchId(match?.round, match?.position)
+    if (virtualId) {
+      await supabase.from("playoff_predictions").delete().eq("match_id", virtualId)
+    } else {
+      await supabase.from("playoff_predictions").delete().eq("match_id", String(matchId))
+    }
     await supabase.from("playoff_matches").delete().eq("id", matchId)
     setMessage("✅ Kamp slettet!")
     setTimeout(() => setMessage(""), 3000)
@@ -313,7 +339,6 @@ export default function Admin() {
       .update({ correct_answer: null }).eq("id", questionId)
     if (error) { setMessage("❌ Noe gikk galt") }
     else {
-      // Nullstill poeng for dette spørsmålet
       await supabase.from("bonus_predictions")
         .update({ points_awarded: 0 }).eq("question_id", questionId)
       setBonusAnswers(prev => {
@@ -402,8 +427,8 @@ export default function Admin() {
         <div style={styles.settingsCard}>
           <h3 style={styles.sectionTitle}>Konkurranseinnstillinger</h3>
           {[
-            { key: 'group_betting_open', label: '⚽ Gruppespill-tipping åpen', desc: 'Slå av når VM starter 11. juni' },
-            { key: 'bonus_betting_open', label: '🎯 Bonusspørsmål-tipping åpen', desc: 'Slå av når VM starter 11. juni' },
+            { key: 'group_betting_open', label: '⚽ Gruppespill-tipping åpen', desc: 'Slå av når VM starter' },
+            { key: 'bonus_betting_open', label: '🎯 Bonusspørsmål-tipping åpen', desc: 'Slå av når VM starter' },
             { key: 'playoff_open', label: '🏆 Sluttspill-tipping åpen', desc: 'Slå på etter gruppespillet er ferdig' },
             { key: 'show_all_predictions', label: '👀 Vis alles tips', desc: 'Slå på etter tippefristen' },
           ].map(s => (
@@ -492,9 +517,6 @@ export default function Admin() {
           {activeRound === 'r16' && (
             <div style={styles.addMatchCard}>
               <h4 style={styles.addMatchTitle}>➕ Legg inn ny kamp</h4>
-              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '8px' }}>
-                FIFA kampnummer: Kamp 73 = posisjon 1, Kamp 74 = posisjon 2 osv.
-              </p>
               <div style={styles.addMatchRow}>
                 <select style={styles.select} value={newMatch.home_team_id}
                   onChange={e => setNewMatch(prev => ({ ...prev, home_team_id: e.target.value }))}>
@@ -529,6 +551,7 @@ export default function Admin() {
               return (
                 <div key={match.id} style={{ ...styles.matchCard, ...(hasResult ? styles.matchCardDone : {}) }}>
                   {fifaNum && <div style={styles.matchDate}>Kamp {fifaNum}</div>}
+                  {!fifaNum && match.match_date && <div style={styles.matchDate}>{formatDate(match.match_date)}</div>}
                   <div style={styles.matchRow}>
                     <div style={styles.team}>
                       <span style={styles.flag}>{home?.flag_emoji}</span>
@@ -600,7 +623,7 @@ export default function Admin() {
                 </button>
                 {q.correct_answer && (
                   <button style={styles.deleteButton} onClick={() => clearBonusAnswer(q.id)}>
-                    🗑️ Fjern fasit
+                    🗑️ Fjern
                   </button>
                 )}
               </div>
