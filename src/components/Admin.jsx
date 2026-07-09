@@ -32,6 +32,72 @@ const getVirtualMatchId = (round, position) => {
   return null
 }
 
+// Beregn hvilke lag en bruker har tippet i en gitt virtuell kamp
+const computeUserTippedTeams = (userPreds, r16Sorted, round, position) => {
+  const getR16Winner = (idx) => {
+    const m = r16Sorted[idx]
+    if (!m) return null
+    const pr = userPreds[String(m.id)]
+    if (!pr) return null
+    if (pr.home_score > pr.away_score) return m.home_team_id
+    if (pr.away_score > pr.home_score) return m.away_team_id
+    return pr.winner_id || null
+  }
+  const getR8Winner = (i) => {
+    const pr = userPreds[`r8_${i}`]
+    if (!pr) return null
+    const [a, b] = R8_BRACKET[i]
+    const h = getR16Winner(a), w = getR16Winner(b)
+    if (!h || !w) return null
+    if (pr.home_score > pr.away_score) return h
+    if (pr.away_score > pr.home_score) return w
+    return pr.winner_id || null
+  }
+  const getQFWinner = (i) => {
+    const pr = userPreds[`qf_${i}`]
+    if (!pr) return null
+    const [a, b] = QF_BRACKET[i]
+    const h = getR8Winner(a), w = getR8Winner(b)
+    if (!h || !w) return null
+    if (pr.home_score > pr.away_score) return h
+    if (pr.away_score > pr.home_score) return w
+    return pr.winner_id || null
+  }
+  const getSFWinner = (i) => {
+    const pr = userPreds[`sf_${i}`]
+    if (!pr) return null
+    const [a, b] = SF_BRACKET[i]
+    const h = getQFWinner(a), w = getQFWinner(b)
+    if (!h || !w) return null
+    if (pr.home_score > pr.away_score) return h
+    if (pr.away_score > pr.home_score) return w
+    return pr.winner_id || null
+  }
+  const getSFLoser = (i) => {
+    const [a, b] = SF_BRACKET[i]
+    const h = getQFWinner(a), w = getQFWinner(b)
+    const win = getSFWinner(i)
+    if (!win || !h || !w) return null
+    return win === h ? w : h
+  }
+
+  if (round === 'r8') {
+    const [a, b] = R8_BRACKET[position - 1]
+    return [getR16Winner(a), getR16Winner(b)]
+  }
+  if (round === 'qf') {
+    const [a, b] = QF_BRACKET[position - 1]
+    return [getR8Winner(a), getR8Winner(b)]
+  }
+  if (round === 'sf') {
+    const [a, b] = SF_BRACKET[position - 1]
+    return [getQFWinner(a), getQFWinner(b)]
+  }
+  if (round === 'bronze') return [getSFLoser(0), getSFLoser(1)]
+  if (round === 'final') return [getSFWinner(0), getSFWinner(1)]
+  return [null, null]
+}
+
 export default function Admin() {
   const [matches, setMatches] = useState([])
   const [playoffMatches, setPlayoffMatches] = useState([])
@@ -211,24 +277,44 @@ export default function Admin() {
     } else {
       predMatchId = getVirtualMatchId(match.round, match.position)
     }
-
     if (!predMatchId) return
 
-    // Hent alle tips for denne kampen
-    const { data: predictions } = await supabase
-      .from("playoff_predictions")
-      .select("*")
-      .eq("match_id", predMatchId)
+    // Hent alle tips (for alle brukere) for bracket-beregning
+    const { data: allPreds } = await supabase.from("playoff_predictions").select("*")
+    const byUser = {}
+    allPreds?.forEach(p => {
+      if (!byUser[p.user_id]) byUser[p.user_id] = {}
+      byUser[p.user_id][p.match_id] = p
+    })
 
-    for (const pred of predictions || []) {
+    const r16Sorted = playoffMatches
+      .filter(m => m.round === 'r16')
+      .sort((a, b) => a.position - b.position)
+
+    // Tips for akkurat denne kampen
+    const predictions = (allPreds || []).filter(p => p.match_id === predMatchId)
+
+    for (const pred of predictions) {
       let points = 0
 
-      if (pred.home_score === homeScore && pred.away_score === awayScore) {
-        points = 3
-      } else {
-        const actualOutcome = homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : "draw"
-        const predOutcome = pred.home_score > pred.away_score ? "home" : pred.away_score > pred.home_score ? "away" : "draw"
-        if (actualOutcome === predOutcome) points = 1
+      // For virtuelle kamper: sjekk om tipperens lag matcher de faktiske lagene
+      let teamsOk = true
+      if (match.round !== 'r16') {
+        const [th, ta] = computeUserTippedTeams(byUser[pred.user_id] || {}, r16Sorted, match.round, match.position)
+        teamsOk = !!th && !!ta && (
+          (th === match.home_team_id && ta === match.away_team_id) ||
+          (th === match.away_team_id && ta === match.home_team_id)
+        )
+      }
+
+      if (teamsOk) {
+        if (pred.home_score === homeScore && pred.away_score === awayScore) {
+          points = 3
+        } else {
+          const actualOutcome = homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : "draw"
+          const predOutcome = pred.home_score > pred.away_score ? "home" : pred.away_score > pred.home_score ? "away" : "draw"
+          if (actualOutcome === predOutcome) points = 1
+        }
       }
 
       await supabase.from("playoff_predictions")
@@ -238,9 +324,6 @@ export default function Admin() {
 
     // Bonuspoeng for r16 → r8
     if (match.round === 'r16' && actualWinnerId) {
-      const r16Sorted = playoffMatches
-        .filter(m => m.round === 'r16')
-        .sort((a, b) => a.position - b.position)
       const r16Index = r16Sorted.findIndex(m => m.id === match.id)
       if (r16Index >= 0) {
         await giveR16BonusPoints(r16Index, actualWinnerId, r16Sorted)
@@ -259,16 +342,21 @@ export default function Admin() {
       .eq("match_id", r8Key)
 
     for (const pred of r8Preds || []) {
-      const pair = R8_BRACKET[r8Index]
-      const otherR16Index = pair[0] === r16Index ? pair[1] : pair[0]
-      const otherMatch = r16Sorted[otherR16Index]
-      if (!otherMatch) continue
-
       const r16Match = r16Sorted[r16Index]
+      const userR16Pred = await supabase
+        .from("playoff_predictions")
+        .select("*")
+        .eq("user_id", pred.user_id)
+        .eq("match_id", String(r16Match.id))
+        .single()
+
+      if (!userR16Pred.data) continue
+
+      const p = userR16Pred.data
       const tipperHadWinner =
-        (pred.home_score > pred.away_score && r16Match.home_team_id === winnerId) ||
-        (pred.away_score > pred.home_score && r16Match.away_team_id === winnerId) ||
-        (pred.home_score === pred.away_score && pred.winner_id === winnerId)
+        (p.home_score > p.away_score && r16Match.home_team_id === winnerId) ||
+        (p.away_score > p.home_score && r16Match.away_team_id === winnerId) ||
+        (p.home_score === p.away_score && p.winner_id === winnerId)
 
       if (tipperHadWinner) {
         const currentPoints = pred.points_awarded || 0
@@ -514,30 +602,28 @@ export default function Admin() {
 
           <h3 style={styles.sectionTitle}>{ROUNDS.find(r => r.id === activeRound)?.label}</h3>
 
-          {activeRound === 'r16' && (
-            <div style={styles.addMatchCard}>
-              <h4 style={styles.addMatchTitle}>➕ Legg inn ny kamp</h4>
-              <div style={styles.addMatchRow}>
-                <select style={styles.select} value={newMatch.home_team_id}
-                  onChange={e => setNewMatch(prev => ({ ...prev, home_team_id: e.target.value }))}>
-                  <option value="">-- Hjemmelag --</option>
-                  {teamsList.map(t => <option key={t.id} value={t.id}>{t.flag_emoji} {t.name}</option>)}
-                </select>
-                <span style={styles.vs}>vs</span>
-                <select style={styles.select} value={newMatch.away_team_id}
-                  onChange={e => setNewMatch(prev => ({ ...prev, away_team_id: e.target.value }))}>
-                  <option value="">-- Bortelag --</option>
-                  {teamsList.map(t => <option key={t.id} value={t.id}>{t.flag_emoji} {t.name}</option>)}
-                </select>
-              </div>
-              <input style={styles.input} type="date" value={newMatch.match_date}
-                onChange={e => setNewMatch(prev => ({ ...prev, match_date: e.target.value }))} />
-              <input style={styles.input} type="text" placeholder="Stadion (valgfritt)"
-                value={newMatch.stadium}
-                onChange={e => setNewMatch(prev => ({ ...prev, stadium: e.target.value }))} />
-              <button style={styles.saveButton} onClick={addPlayoffMatch}>➕ Legg inn kamp</button>
+          <div style={styles.addMatchCard}>
+            <h4 style={styles.addMatchTitle}>➕ Legg inn ny kamp</h4>
+            <div style={styles.addMatchRow}>
+              <select style={styles.select} value={newMatch.home_team_id}
+                onChange={e => setNewMatch(prev => ({ ...prev, home_team_id: e.target.value }))}>
+                <option value="">-- Hjemmelag --</option>
+                {teamsList.map(t => <option key={t.id} value={t.id}>{t.flag_emoji} {t.name}</option>)}
+              </select>
+              <span style={styles.vs}>vs</span>
+              <select style={styles.select} value={newMatch.away_team_id}
+                onChange={e => setNewMatch(prev => ({ ...prev, away_team_id: e.target.value }))}>
+                <option value="">-- Bortelag --</option>
+                {teamsList.map(t => <option key={t.id} value={t.id}>{t.flag_emoji} {t.name}</option>)}
+              </select>
             </div>
-          )}
+            <input style={styles.input} type="date" value={newMatch.match_date}
+              onChange={e => setNewMatch(prev => ({ ...prev, match_date: e.target.value }))} />
+            <input style={styles.input} type="text" placeholder="Stadion (valgfritt)"
+              value={newMatch.stadium}
+              onChange={e => setNewMatch(prev => ({ ...prev, stadium: e.target.value }))} />
+            <button style={styles.saveButton} onClick={addPlayoffMatch}>➕ Legg inn kamp</button>
+          </div>
 
           <div style={styles.matchList}>
             {roundPlayoffMatches.map((match, index) => {
